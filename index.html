@@ -50,6 +50,24 @@
                 noAssignee: 'Non assigné',
                 filterByMember: 'Filtrer par membre',
                 allMembers: 'Tous les membres',
+                statistics: 'Statistiques',
+                projectDuration: 'Durée du projet',
+                workloadByWeek: 'Charge de travail par semaine',
+                overdueTasks: 'Tâches en retard',
+                progressChart: 'Progression du projet',
+                status: 'Statut',
+                todo: 'À faire',
+                inProgress: 'En cours',
+                completed: 'Terminé',
+                blocked: 'Bloqué',
+                totalTasks: 'Total des tâches',
+                completionRate: 'Taux de complétion',
+                days: 'jours',
+                weeks: 'semaines',
+                tasksActive: 'tâche(s) active(s)',
+                noOverdue: 'Aucune tâche en retard',
+                startDate: 'Date de début',
+                endDate: 'Date de fin',
                 months: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
             },
             en: {
@@ -86,6 +104,24 @@
                 noAssignee: 'Unassigned',
                 filterByMember: 'Filter by member',
                 allMembers: 'All members',
+                statistics: 'Statistics',
+                projectDuration: 'Project duration',
+                workloadByWeek: 'Workload by week',
+                overdueTasks: 'Overdue tasks',
+                progressChart: 'Project progress',
+                status: 'Status',
+                todo: 'To do',
+                inProgress: 'In progress',
+                completed: 'Completed',
+                blocked: 'Blocked',
+                totalTasks: 'Total tasks',
+                completionRate: 'Completion rate',
+                days: 'days',
+                weeks: 'weeks',
+                tasksActive: 'active task(s)',
+                noOverdue: 'No overdue tasks',
+                startDate: 'Start date',
+                endDate: 'End date',
                 months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
             },
             ro: {
@@ -122,6 +158,24 @@
                 noAssignee: 'Neatribuit',
                 filterByMember: 'Filtrează după membru',
                 allMembers: 'Toți membrii',
+                statistics: 'Statistici',
+                projectDuration: 'Durata proiectului',
+                workloadByWeek: 'Sarcină de lucru pe săptămână',
+                overdueTasks: 'Taskuri întârziate',
+                progressChart: 'Progresul proiectului',
+                status: 'Status',
+                todo: 'De făcut',
+                inProgress: 'În progres',
+                completed: 'Finalizat',
+                blocked: 'Blocat',
+                totalTasks: 'Total taskuri',
+                completionRate: 'Rată de finalizare',
+                days: 'zile',
+                weeks: 'săptămâni',
+                tasksActive: 'task(uri) activ(e)',
+                noOverdue: 'Niciun task întârziat',
+                startDate: 'Data început',
+                endDate: 'Data sfârșit',
                 months: ['Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie', 'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie']
             }
         };
@@ -252,6 +306,14 @@
             </svg>
         );
 
+        const BarChart = ({ size = 24 }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="20" x2="12" y2="10"></line>
+                <line x1="18" y1="20" x2="18" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="16"></line>
+            </svg>
+        );
+
         const ProjectPlanner = () => {
             const [currentYear, setCurrentYear] = useState(2024);
             const [language, setLanguage] = useState('fr');
@@ -266,6 +328,7 @@
             const [filterMenuOpen, setFilterMenuOpen] = useState(false);
             const [selectedMemberFilter, setSelectedMemberFilter] = useState('all');
             const [newMemberName, setNewMemberName] = useState('');
+            const [statsMenuOpen, setStatsMenuOpen] = useState(false);
             
             // Membres d'équipe
             const [teamMembers, setTeamMembers] = useState([
@@ -298,7 +361,8 @@
                     startDate: null,
                     endDate: null,
                     color: '#60A5FA',
-                    assigneeId: null
+                    assigneeId: null,
+                    status: 'inProgress'
                 },
                 {
                     id: 2,
@@ -307,7 +371,8 @@
                     startDate: '2024-09-23',
                     endDate: '2024-10-21',
                     color: '#93C5FD',
-                    assigneeId: 1
+                    assigneeId: 1,
+                    status: 'completed'
                 },
                 {
                     id: 3,
@@ -316,7 +381,8 @@
                     startDate: '2024-10-22',
                     endDate: '2024-11-04',
                     color: '#93C5FD',
-                    assigneeId: 2
+                    assigneeId: 2,
+                    status: 'inProgress'
                 },
                 {
                     id: 4,
@@ -325,7 +391,8 @@
                     startDate: '2024-11-05',
                     endDate: '2024-11-14',
                     color: '#93C5FD',
-                    assigneeId: 3
+                    assigneeId: 3,
+                    status: 'todo'
                 }
             ]);
 
@@ -386,6 +453,77 @@
 
             const filteredTasks = getFilteredTasks();
 
+            // Fonctions de statistiques
+            const calculateProjectDuration = () => {
+                const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
+                if (tasksWithDates.length === 0) return { days: 0, weeks: 0 };
+                
+                const startDates = tasksWithDates.map(t => new Date(t.startDate));
+                const endDates = tasksWithDates.map(t => new Date(t.endDate));
+                
+                const projectStart = new Date(Math.min(...startDates));
+                const projectEnd = new Date(Math.max(...endDates));
+                
+                const diffTime = Math.abs(projectEnd - projectStart);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const diffWeeks = Math.ceil(diffDays / 7);
+                
+                return { 
+                    days: diffDays, 
+                    weeks: diffWeeks,
+                    startDate: projectStart,
+                    endDate: projectEnd
+                };
+            };
+
+            const calculateWorkloadByWeek = () => {
+                const workload = {};
+                
+                tasks.forEach(task => {
+                    if (!task.startDate || !task.endDate) return;
+                    
+                    const start = new Date(task.startDate);
+                    const end = new Date(task.endDate);
+                    
+                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
+                        const weekKey = `${d.getFullYear()}-W${getWeekNumber(d)}`;
+                        workload[weekKey] = (workload[weekKey] || 0) + 1;
+                    }
+                });
+                
+                return workload;
+            };
+
+            const getOverdueTasks = () => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                return tasks.filter(task => {
+                    if (!task.endDate || task.status === 'completed') return false;
+                    const endDate = new Date(task.endDate);
+                    return endDate < today;
+                });
+            };
+
+            const calculateProgress = () => {
+                const totalTasks = tasks.filter(t => t.type === 'Task').length;
+                if (totalTasks === 0) return { completed: 0, total: 0, percentage: 0 };
+                
+                const completedTasks = tasks.filter(t => t.type === 'Task' && t.status === 'completed').length;
+                const percentage = Math.round((completedTasks / totalTasks) * 100);
+                
+                return { completed: completedTasks, total: totalTasks, percentage };
+            };
+
+            const getStatusCount = () => {
+                return {
+                    todo: tasks.filter(t => t.status === 'todo').length,
+                    inProgress: tasks.filter(t => t.status === 'inProgress').length,
+                    completed: tasks.filter(t => t.status === 'completed').length,
+                    blocked: tasks.filter(t => t.status === 'blocked').length
+                };
+            };
+
             const generateWeekColumns = () => {
                 const weeks = [];
                 const t = translations[language];
@@ -440,7 +578,8 @@
                     startDate: startDate.toISOString().split('T')[0],
                     endDate: endDate.toISOString().split('T')[0],
                     color: '#60A5FA',
-                    assigneeId: null
+                    assigneeId: null,
+                    status: 'todo'
                 };
                 setTasks([...tasks, newTask]);
             };
@@ -572,7 +711,14 @@
                         const data = JSON.parse(e.target.result);
                         if (data.projectTitle) setProjectTitle(data.projectTitle);
                         if (data.currentYear) setCurrentYear(data.currentYear);
-                        if (data.tasks && Array.isArray(data.tasks)) setTasks(data.tasks);
+                        if (data.tasks && Array.isArray(data.tasks)) {
+                            // Ajouter le statut par défaut si manquant
+                            const updatedTasks = data.tasks.map(task => ({
+                                ...task,
+                                status: task.status || 'todo'
+                            }));
+                            setTasks(updatedTasks);
+                        }
                         if (data.language) setLanguage(data.language);
                         if (data.yearView) setYearView(data.yearView);
                         if (data.teamMembers && Array.isArray(data.teamMembers)) setTeamMembers(data.teamMembers);
@@ -803,6 +949,134 @@
                                     >
                                         {showColumns ? <Eye size={20} /> : <EyeOff size={20} />}
                                     </button>
+
+                                    <div className="h-6 w-px bg-white/30"></div>
+
+                                    <div className="relative">
+                                        <button 
+                                            onClick={() => setStatsMenuOpen(!statsMenuOpen)}
+                                            className="flex items-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors text-sm font-medium"
+                                        >
+                                            <BarChart size={18} />
+                                            {translations[language].statistics}
+                                        </button>
+                                        {statsMenuOpen && (
+                                            <>
+                                                <div className="fixed inset-0 z-40" onClick={() => setStatsMenuOpen(false)}></div>
+                                                <div className="absolute right-0 mt-2 w-[600px] bg-white rounded-lg shadow-xl z-50 p-6 max-h-[80vh] overflow-y-auto">
+                                                    <h3 className="font-bold text-xl text-gray-800 mb-4">{translations[language].statistics}</h3>
+                                                    
+                                                    {/* Durée du projet */}
+                                                    <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                                                        <h4 className="font-semibold text-gray-700 mb-2">{translations[language].projectDuration}</h4>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <p className="text-3xl font-bold text-blue-600">
+                                                                    {calculateProjectDuration().days}
+                                                                </p>
+                                                                <p className="text-sm text-gray-600">{translations[language].days}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-3xl font-bold text-blue-600">
+                                                                    {calculateProjectDuration().weeks}
+                                                                </p>
+                                                                <p className="text-sm text-gray-600">{translations[language].weeks}</p>
+                                                            </div>
+                                                        </div>
+                                                        {calculateProjectDuration().startDate && (
+                                                            <div className="mt-3 text-xs text-gray-600">
+                                                                <p>{translations[language].startDate}: {formatDate(calculateProjectDuration().startDate.toISOString().split('T')[0])}</p>
+                                                                <p>{translations[language].endDate}: {formatDate(calculateProjectDuration().endDate.toISOString().split('T')[0])}</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Progression */}
+                                                    <div className="mb-6 p-4 bg-green-50 rounded-lg">
+                                                        <h4 className="font-semibold text-gray-700 mb-2">{translations[language].progressChart}</h4>
+                                                        <div className="mb-3">
+                                                            <div className="flex justify-between text-sm mb-1">
+                                                                <span className="text-gray-600">{translations[language].completionRate}</span>
+                                                                <span className="font-bold text-green-600">{calculateProgress().percentage}%</span>
+                                                            </div>
+                                                            <div className="w-full bg-gray-200 rounded-full h-4">
+                                                                <div 
+                                                                    className="bg-green-500 h-4 rounded-full transition-all duration-500"
+                                                                    style={{ width: `${calculateProgress().percentage}%` }}
+                                                                ></div>
+                                                            </div>
+                                                            <p className="text-xs text-gray-600 mt-1">
+                                                                {calculateProgress().completed} / {calculateProgress().total} {translations[language].totalTasks}
+                                                            </p>
+                                                        </div>
+                                                        
+                                                        <div className="grid grid-cols-4 gap-2 mt-4">
+                                                            <div className="text-center p-2 bg-white rounded">
+                                                                <p className="text-lg font-bold text-gray-600">{getStatusCount().todo}</p>
+                                                                <p className="text-xs text-gray-500">{translations[language].todo}</p>
+                                                            </div>
+                                                            <div className="text-center p-2 bg-white rounded">
+                                                                <p className="text-lg font-bold text-blue-600">{getStatusCount().inProgress}</p>
+                                                                <p className="text-xs text-gray-500">{translations[language].inProgress}</p>
+                                                            </div>
+                                                            <div className="text-center p-2 bg-white rounded">
+                                                                <p className="text-lg font-bold text-green-600">{getStatusCount().completed}</p>
+                                                                <p className="text-xs text-gray-500">{translations[language].completed}</p>
+                                                            </div>
+                                                            <div className="text-center p-2 bg-white rounded">
+                                                                <p className="text-lg font-bold text-red-600">{getStatusCount().blocked}</p>
+                                                                <p className="text-xs text-gray-500">{translations[language].blocked}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Tâches en retard */}
+                                                    <div className="mb-6 p-4 bg-red-50 rounded-lg">
+                                                        <h4 className="font-semibold text-gray-700 mb-2">{translations[language].overdueTasks}</h4>
+                                                        {getOverdueTasks().length === 0 ? (
+                                                            <p className="text-green-600 font-medium">✓ {translations[language].noOverdue}</p>
+                                                        ) : (
+                                                            <div className="space-y-2">
+                                                                <p className="text-2xl font-bold text-red-600 mb-3">{getOverdueTasks().length}</p>
+                                                                {getOverdueTasks().map(task => (
+                                                                    <div key={task.id} className="bg-white p-2 rounded border-l-4 border-red-500">
+                                                                        <p className="font-medium text-sm text-gray-800">{task.description}</p>
+                                                                        <p className="text-xs text-gray-600">
+                                                                            {translations[language].endDate}: {formatDate(task.endDate)}
+                                                                        </p>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Charge de travail */}
+                                                    <div className="mb-4 p-4 bg-purple-50 rounded-lg">
+                                                        <h4 className="font-semibold text-gray-700 mb-3">{translations[language].workloadByWeek}</h4>
+                                                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                                                            {Object.entries(calculateWorkloadByWeek())
+                                                                .sort(([a], [b]) => a.localeCompare(b))
+                                                                .map(([week, count]) => (
+                                                                    <div key={week} className="flex items-center gap-3">
+                                                                        <span className="text-xs text-gray-600 w-20">{week}</span>
+                                                                        <div className="flex-1 bg-gray-200 rounded-full h-6 relative">
+                                                                            <div 
+                                                                                className="bg-purple-500 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                                                                                style={{ width: `${(count / Math.max(...Object.values(calculateWorkloadByWeek()))) * 100}%`, minWidth: '30px' }}
+                                                                            >
+                                                                                {count}
+                                                                            </div>
+                                                                        </div>
+                                                                        <span className="text-xs text-gray-600 w-24">{count} {translations[language].tasksActive}</span>
+                                                                    </div>
+                                                                ))
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
 
                                     <div className="h-6 w-px bg-white/30"></div>
 
@@ -1063,6 +1337,7 @@
                                 <div className="flex border-b-2 border-gray-200 bg-gray-50">
                                     {showColumns && <div className="w-16 sm:w-20 md:w-28 p-2 sm:p-3 font-bold text-gray-700 border-r text-xs sm:text-sm">{translations[language].type}</div>}
                                     <div className="w-40 sm:w-60 md:w-80 p-2 sm:p-3 font-bold text-gray-700 border-r text-xs sm:text-sm">{translations[language].description}</div>
+                                    {showColumns && <div className="w-28 md:w-36 p-2 sm:p-3 font-bold text-gray-700 border-r text-xs sm:text-sm">{translations[language].status}</div>}
                                     {showColumns && <div className="w-32 md:w-40 p-2 sm:p-3 font-bold text-gray-700 border-r text-xs sm:text-sm">{translations[language].assignee}</div>}
                                     {showColumns && <div className="w-24 md:w-32 p-2 sm:p-3 font-bold text-gray-700 border-r text-xs sm:text-sm">{translations[language].start}</div>}
                                     {showColumns && <div className="w-24 md:w-32 p-2 sm:p-3 font-bold text-gray-700 border-r text-xs sm:text-sm">{translations[language].end}</div>}
@@ -1097,6 +1372,26 @@
                                                     className="w-full px-1 sm:px-2 py-1 border rounded text-xs sm:text-sm"
                                                 />
                                             </div>
+                                            {showColumns && (
+                                                <div className="w-28 md:w-36 p-1 sm:p-2 border-r">
+                                                    <select
+                                                        value={task.status || 'todo'}
+                                                        onChange={(e) => updateTask(task.id, 'status', e.target.value)}
+                                                        className="w-full px-1 py-1 border rounded text-xs"
+                                                        style={{
+                                                            backgroundColor: 
+                                                                task.status === 'completed' ? '#dcfce7' :
+                                                                task.status === 'inProgress' ? '#dbeafe' :
+                                                                task.status === 'blocked' ? '#fee2e2' : '#f3f4f6'
+                                                        }}
+                                                    >
+                                                        <option value="todo">{translations[language].todo}</option>
+                                                        <option value="inProgress">{translations[language].inProgress}</option>
+                                                        <option value="completed">{translations[language].completed}</option>
+                                                        <option value="blocked">{translations[language].blocked}</option>
+                                                    </select>
+                                                </div>
+                                            )}
                                             {showColumns && (
                                                 <div className="w-32 md:w-40 p-1 sm:p-2 border-r">
                                                     <select
@@ -1246,6 +1541,11 @@
                                         const position = getTaskPosition(taskToDisplay);
                                         const assignee = task.assigneeId ? getMemberById(task.assigneeId) : null;
                                         
+                                        // Vérifier si la tâche est en retard
+                                        const today = new Date();
+                                        today.setHours(0, 0, 0, 0);
+                                        const isOverdue = task.endDate && new Date(task.endDate) < today && task.status !== 'completed';
+                                        
                                         return (
                                             <div key={`gantt-${task.id}`} className="border-b border-gray-200 hover:bg-gray-50" style={{ height: '48px' }}>
                                                 <div className="relative" style={{ height: '48px' }}>
@@ -1260,7 +1560,9 @@
                                                             style={{
                                                                 left: `${position.left * 30}px`,
                                                                 width: `${position.width * 30}px`,
-                                                                backgroundColor: task.color
+                                                                backgroundColor: task.color,
+                                                                border: isOverdue ? '3px solid #ef4444' : 'none',
+                                                                boxShadow: isOverdue ? '0 0 10px rgba(239, 68, 68, 0.5)' : undefined
                                                             }}
                                                         >
                                                             {assignee && (

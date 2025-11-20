@@ -3,1598 +3,432 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Planning de Projet</title>
+    <title>Planner Pro: Premium UI</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body>
-    <div id="root"></div>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <script type="text/babel">
-        const { useState, useMemo, useRef } = React;
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        
+        /* Curseurs & Selection */
+        .cursor-grab { cursor: grab; }
+        .cursor-grabbing { cursor: grabbing; }
+        .cursor-ew-resize { cursor: ew-resize; }
+        .no-select { user-select: none; }
+        
+        /* Scrollbar invisible mais fonctionnelle (plus propre) */
+        .hide-scroll::-webkit-scrollbar { height: 6px; width: 6px; }
+        .hide-scroll::-webkit-scrollbar-track { background: transparent; }
+        .hide-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .hide-scroll:hover::-webkit-scrollbar-thumb { background: #94a3b8; }
 
+        .thin-scroll::-webkit-scrollbar { width: 6px; }
+        .thin-scroll::-webkit-scrollbar-track { background: transparent; }
+        .thin-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+        /* Styles Gantt Spécifiques */
+        .resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 10px; cursor: ew-resize; z-index: 20; opacity: 0; transition: opacity 0.2s; }
+        .task-bar:hover .resize-handle { opacity: 1; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4)); }
+        
+        .story-row { background-color: #f8fafc; font-weight: 600; color: #1e293b; }
+        
+        /* Ligne Aujourd'hui avec effet Glow */
+        .today-line { position: absolute; top: 0; bottom: 0; border-left: 2px solid #ef4444; z-index: 30; pointer-events: none; box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+        .today-label { position: absolute; top: 46px; transform: translateX(-50%); background: #ef4444; color: white; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 99px; z-index: 31; white-space: nowrap; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3); }
+        
+        .selected-task { background-color: #eff6ff !important; border-left: 3px solid #3b82f6; }
+        
+        /* Transitions douces */
+        .btn-hover { transition: all 0.2s ease; }
+        .btn-hover:active { transform: scale(0.96); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden">
+    <div id="root" class="h-full"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useRef, useEffect, useCallback } = React;
+
+        // --- TRADUCTIONS ---
         const translations = {
             fr: {
-                projectTitle: 'Planning de Projet',
-                type: 'Type',
-                description: 'Description',
-                start: 'Début',
-                end: 'Fin',
-                action: 'Action',
-                story: 'Story',
-                task: 'Task',
-                exportJSON: 'Exporter JSON',
-                importJSON: 'Importer JSON',
-                exportImage: 'Exporter Image',
-                addTask: 'Ajouter tâche',
-                taskCount: 'tâche(s)',
-                year: 'Année',
-                newTask: 'Nouvelle tâche',
-                errorJSON: 'Erreur lors de la lecture du fichier JSON.',
-                hideColumns: 'Masquer colonnes',
-                showColumns: 'Afficher colonnes',
-                view: 'Vue',
-                file: 'Fichier',
-                oneYear: '1 an',
-                twoYears: '2 ans',
-                threeYears: '3 ans',
-                color: 'Couleur',
-                customColor: 'Couleur personnalisée',
-                assignee: 'Assigné à',
-                manageTeam: 'Gérer l\'équipe',
-                addMember: 'Ajouter membre',
-                memberName: 'Nom du membre',
-                deleteMember: 'Supprimer membre',
-                noAssignee: 'Non assigné',
-                filterByMember: 'Filtrer par membre',
-                allMembers: 'Tous les membres',
-                statistics: 'Statistiques',
-                projectDuration: 'Durée du projet',
-                workloadByWeek: 'Charge de travail par semaine',
-                overdueTasks: 'Tâches en retard',
-                progressChart: 'Progression du projet',
-                status: 'Statut',
-                todo: 'À faire',
-                inProgress: 'En cours',
-                completed: 'Terminé',
-                blocked: 'Bloqué',
-                totalTasks: 'Total des tâches',
-                completionRate: 'Taux de complétion',
-                days: 'jours',
-                weeks: 'semaines',
-                tasksActive: 'tâche(s) active(s)',
-                noOverdue: 'Aucune tâche en retard',
-                startDate: 'Date de début',
-                endDate: 'Date de fin',
-                months: ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+                projectTitle: 'Mon Planning', type: 'Type', description: 'Tâche', start: 'Début', end: 'Fin', action: 'Action', story: 'Story', task: 'Tâche', exportJSON: 'Export JSON', importJSON: 'Import JSON', exportImage: 'Export IMG', exportCSV: 'Export CSV', addTask: 'Tâche', addStory: 'Story', taskCount: 'tâches', year: 'Année', newTask: 'Nouvelle tâche', newStory: 'Nouvelle Story', errorJSON: 'Erreur JSON', hideColumns: 'Masquer', showColumns: 'Afficher', view: 'Vue', file: 'Fichier', oneYear: '1 an', twoYears: '2 ans', threeYears: '3 ans', color: 'Couleur', customColor: 'Perso', assignee: 'Responsable', manageTeam: 'Équipe', addMember: 'Ajouter', memberName: 'Nom', deleteMember: 'Supprimer', noAssignee: 'Non assigné', filterByMember: 'Filtrer', allMembers: 'Tous', statistics: 'Statistiques', projectDuration: 'Durée', workloadByWeek: 'Charge/semaine', overdueTasks: 'Retards', progressChart: 'Progression', status: 'État', todo: 'À faire', inProgress: 'En cours', completed: 'Fait', blocked: 'Bloqué', totalTasks: 'Total', completionRate: 'Complétion', days: 'j', weeks: 'sem', tasksActive: 'tâche(s)', noOverdue: 'Aucun retard', startDate: 'Début', endDate: 'Fin', months: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'],
+                myProjects: 'Projets', createProject: 'Créer Projet', deleteConfirm: 'Supprimer ce projet ?', unnamedProject: 'Projet sans nom', back: 'Retour',
+                details: 'Détails', progress: 'Progression', link: 'Lien', save: 'Enregistrer', cancel: 'Annuler', editTask: 'Éditer', search: 'Rechercher...', duplicate: 'Dupliquer', undo: 'Annuler', redo: 'Rétablir'
             },
             en: {
-                projectTitle: 'Project Planning',
-                type: 'Type',
-                description: 'Description',
-                start: 'Start',
-                end: 'End',
-                action: 'Action',
-                story: 'Story',
-                task: 'Task',
-                exportJSON: 'Export JSON',
-                importJSON: 'Import JSON',
-                exportImage: 'Export Image',
-                addTask: 'Add Task',
-                taskCount: 'task(s)',
-                year: 'Year',
-                newTask: 'New task',
-                errorJSON: 'Error reading JSON file.',
-                hideColumns: 'Hide columns',
-                showColumns: 'Show columns',
-                view: 'View',
-                file: 'File',
-                oneYear: '1 year',
-                twoYears: '2 years',
-                threeYears: '3 years',
-                color: 'Color',
-                customColor: 'Custom color',
-                assignee: 'Assigned to',
-                manageTeam: 'Manage team',
-                addMember: 'Add member',
-                memberName: 'Member name',
-                deleteMember: 'Delete member',
-                noAssignee: 'Unassigned',
-                filterByMember: 'Filter by member',
-                allMembers: 'All members',
-                statistics: 'Statistics',
-                projectDuration: 'Project duration',
-                workloadByWeek: 'Workload by week',
-                overdueTasks: 'Overdue tasks',
-                progressChart: 'Project progress',
-                status: 'Status',
-                todo: 'To do',
-                inProgress: 'In progress',
-                completed: 'Completed',
-                blocked: 'Blocked',
-                totalTasks: 'Total tasks',
-                completionRate: 'Completion rate',
-                days: 'days',
-                weeks: 'weeks',
-                tasksActive: 'active task(s)',
-                noOverdue: 'No overdue tasks',
-                startDate: 'Start date',
-                endDate: 'End date',
-                months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-            },
-            ro: {
-                projectTitle: 'Planificare Proiect',
-                type: 'Tip',
-                description: 'Descriere',
-                start: 'Început',
-                end: 'Sfârșit',
-                action: 'Acțiune',
-                story: 'Story',
-                task: 'Task',
-                exportJSON: 'Exportă JSON',
-                importJSON: 'Importă JSON',
-                exportImage: 'Exportă Imagine',
-                addTask: 'Adaugă task',
-                taskCount: 'task-uri',
-                year: 'An',
-                newTask: 'Task nou',
-                errorJSON: 'Eroare la citirea fișierului JSON.',
-                hideColumns: 'Ascunde coloanele',
-                showColumns: 'Arată coloanele',
-                view: 'Vedere',
-                file: 'Fișier',
-                oneYear: '1 an',
-                twoYears: '2 ani',
-                threeYears: '3 ani',
-                color: 'Culoare',
-                customColor: 'Culoare personalizată',
-                assignee: 'Atribuit',
-                manageTeam: 'Gestionează echipa',
-                addMember: 'Adaugă membru',
-                memberName: 'Nume membru',
-                deleteMember: 'Șterge membru',
-                noAssignee: 'Neatribuit',
-                filterByMember: 'Filtrează după membru',
-                allMembers: 'Toți membrii',
-                statistics: 'Statistici',
-                projectDuration: 'Durata proiectului',
-                workloadByWeek: 'Sarcină de lucru pe săptămână',
-                overdueTasks: 'Taskuri întârziate',
-                progressChart: 'Progresul proiectului',
-                status: 'Status',
-                todo: 'De făcut',
-                inProgress: 'În progres',
-                completed: 'Finalizat',
-                blocked: 'Blocat',
-                totalTasks: 'Total taskuri',
-                completionRate: 'Rată de finalizare',
-                days: 'zile',
-                weeks: 'săptămâni',
-                tasksActive: 'task(uri) activ(e)',
-                noOverdue: 'Niciun task întârziat',
-                startDate: 'Data început',
-                endDate: 'Data sfârșit',
-                months: ['Ianuarie', 'Februarie', 'Martie', 'Aprilie', 'Mai', 'Iunie', 'Iulie', 'August', 'Septembrie', 'Octombrie', 'Noiembrie', 'Decembrie']
+                projectTitle: 'My Plan', type: 'Type', description: 'Task', start: 'Start', end: 'End', action: 'Action', story: 'Story', task: 'Task', exportJSON: 'Export JSON', importJSON: 'Import JSON', exportImage: 'Export IMG', exportCSV: 'Export CSV', addTask: 'Task', addStory: 'Story', taskCount: 'tasks', year: 'Year', newTask: 'New task', newStory: 'New Story', errorJSON: 'JSON Error', hideColumns: 'Hide cols', showColumns: 'Show cols', view: 'View', file: 'File', oneYear: '1 year', twoYears: '2 years', threeYears: '3 years', color: 'Color', customColor: 'Custom', assignee: 'Assignee', manageTeam: 'Team', addMember: 'Add', memberName: 'Name', deleteMember: 'Delete', noAssignee: 'Unassigned', filterByMember: 'Filter', allMembers: 'All', statistics: 'Stats', projectDuration: 'Duration', workloadByWeek: 'Workload/week', overdueTasks: 'Overdue', progressChart: 'Progress', status: 'Status', todo: 'To do', inProgress: 'In progress', completed: 'Done', blocked: 'Blocked', totalTasks: 'Total', completionRate: 'Rate', days: 'd', weeks: 'w', tasksActive: 'task(s)', noOverdue: 'No overdue', startDate: 'Start', endDate: 'End', months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                myProjects: 'Projects', createProject: 'New Project', deleteConfirm: 'Delete this project?', unnamedProject: 'Unnamed Project', back: 'Back',
+                details: 'Details', progress: 'Progress', link: 'Link', save: 'Save', cancel: 'Cancel', editTask: 'Edit', search: 'Search...', duplicate: 'Duplicate', undo: 'Undo', redo: 'Redo'
             }
         };
 
-        // Icônes SVG
-        const Calendar = ({ size = 24, className = "" }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="16" y1="2" x2="16" y2="6"></line>
-                <line x1="8" y1="2" x2="8" y2="6"></line>
-                <line x1="3" y1="10" x2="21" y2="10"></line>
-            </svg>
-        );
+        // --- ICONS ---
+        const Icon = ({ children, size = 18, className = "" }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>);
+        const Plus = (p) => <Icon {...p}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></Icon>;
+        const Trash2 = (p) => <Icon {...p}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></Icon>;
+        const ChevronLeft = (p) => <Icon {...p}><polyline points="15 18 9 12 15 6"></polyline></Icon>;
+        const ChevronRight = (p) => <Icon {...p}><polyline points="9 18 15 12 9 6"></polyline></Icon>;
+        const ChevronDown = (p) => <Icon {...p}><polyline points="6 9 12 15 18 9"></polyline></Icon>;
+        const Download = (p) => <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></Icon>;
+        const Upload = (p) => <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></Icon>;
+        const FileDown = (p) => <Icon {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><polyline points="9 15 12 18 15 15"></polyline></Icon>;
+        const FileText = (p) => <Icon {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></Icon>;
+        const Eye = (p) => <Icon {...p}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></Icon>;
+        const Menu = (p) => <Icon {...p}><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></Icon>;
+        const X = (p) => <Icon {...p}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></Icon>;
+        const Users = (p) => <Icon {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></Icon>;
+        const UserPlus = (p) => <Icon {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></Icon>;
+        const BarChart = (p) => <Icon {...p}><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></Icon>;
+        const Layout = (p) => <Icon {...p}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></Icon>;
+        const FolderPlus = (p) => <Icon {...p}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></Icon>;
+        const Book = (p) => <Icon {...p}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></Icon>;
+        const LinkIcon = (p) => <Icon {...p}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></Icon>;
+        const Search = (p) => <Icon {...p}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></Icon>;
+        const Copy = (p) => <Icon {...p}><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></Icon>;
+        const Undo = (p) => <Icon {...p}><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></Icon>;
+        const Redo = (p) => <Icon {...p}><path d="M21 7v6h-6"></path><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"></path></Icon>;
 
-        const Plus = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-        );
+        // --- UTILS ---
+        const predefinedColors = ['#60A5FA', '#93C5FD', '#34D399', '#A78BFA', '#F87171', '#FBBF24', '#FB923C', '#EC4899', '#10B981', '#8B5CF6', '#EF4444', '#14B8A6'];
+        const getWeeksInYear = (year) => { const d = new Date(year, 11, 31); return Math.ceil((d - new Date(year, 0, 1)) / 604800000); };
+        const getWeekNumber = (d) => Math.ceil((d - new Date(d.getFullYear(), 0, 1)) / 604800000);
+        const formatDate = (s) => s ? new Date(s).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'}) : '';
+        const getInitials = (n) => { const p = n.trim().split(' '); return p.length === 1 ? p[0].substring(0, 2).toUpperCase() : (p[0][0] + p[p.length - 1][0]).toUpperCase(); };
+        const addWeeksToDate = (dateStr, weeks) => { if(!dateStr) return null; const d = new Date(dateStr); d.setDate(d.getDate() + (weeks * 7)); return d.toISOString().split('T')[0]; };
 
-        const Trash2 = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                <line x1="10" y1="11" x2="10" y2="17"></line>
-                <line x1="14" y1="11" x2="14" y2="17"></line>
-            </svg>
-        );
+        // --- MODAL COMPONENT ---
+        const TaskModal = ({ task, onClose, onSave, language, teamMembers, predefinedColors }) => {
+            const [edited, setEdited] = useState({...task});
+            const t = translations[language];
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-slate-100">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white z-10">
+                            <h3 className="font-bold text-xl text-slate-800">{t.editTask}</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1 rounded-full transition"><X size={20}/></button>
+                        </div>
+                        <div className="p-6 space-y-6 overflow-y-auto thin-scroll">
+                            <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">{t.description}</label><input type="text" value={edited.description} onChange={e => setEdited({...edited, description: e.target.value})} className="w-full p-3 bg-slate-50 border-transparent focus:bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-lg font-semibold transition-all" /></div>
+                            <div className="grid grid-cols-2 gap-5">
+                                <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">{t.start}</label><input type="date" value={edited.startDate || ''} onChange={e => setEdited({...edited, startDate: e.target.value})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none" /></div>
+                                <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">{t.end}</label><input type="date" value={edited.endDate || ''} onChange={e => setEdited({...edited, endDate: e.target.value})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none" /></div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-5">
+                                <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">{t.assignee}</label><select value={edited.assigneeId || ''} onChange={e => setEdited({...edited, assigneeId: e.target.value ? parseInt(e.target.value) : null})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none"><option value="">{t.noAssignee}</option>{teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></div>
+                                <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">{t.status}</label><select value={edited.status} onChange={e => setEdited({...edited, status: e.target.value})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none"><option value="todo">{t.todo}</option><option value="inProgress">{t.inProgress}</option><option value="completed">{t.completed}</option><option value="blocked">{t.blocked}</option></select></div>
+                                <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">{t.progress} : {edited.progress || 0}%</label><input type="range" min="0" max="100" step="5" value={edited.progress || 0} onChange={e => setEdited({...edited, progress: parseInt(e.target.value)})} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 mt-3" /></div>
+                            </div>
+                            <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">{t.details}</label><textarea rows="5" value={edited.details || ''} onChange={e => setEdited({...edited, details: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-sm resize-none" placeholder="Notes..."></textarea></div>
+                            <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">{t.link}</label><div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"><LinkIcon className="text-slate-400" /><input type="url" value={edited.link || ''} onChange={e => setEdited({...edited, link: e.target.value})} className="w-full bg-transparent outline-none text-sm text-blue-600" placeholder="https://..." /></div></div>
+                            <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1 tracking-wider">{t.color}</label><div className="flex gap-3 flex-wrap">{predefinedColors.map(c => (<button key={c} onClick={() => setEdited({...edited, color: c})} className={`w-8 h-8 rounded-full shadow-sm transition-transform ${edited.color === c ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : 'hover:scale-105'}`} style={{backgroundColor: c}}></button>))}<input type="color" value={edited.color} onChange={e => setEdited({...edited, color: e.target.value})} className="w-8 h-8 p-0 border-none rounded-full overflow-hidden cursor-pointer shadow-sm" /></div></div>
+                        </div>
+                        <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3"><button onClick={onClose} className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium text-sm btn-hover">{t.cancel}</button><button onClick={() => onSave(edited)} className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm shadow-lg shadow-blue-500/30 btn-hover">{t.save}</button></div>
+                    </div>
+                </div>
+            );
+        };
 
-        const Palette = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="13.5" cy="6.5" r=".5"></circle>
-                <circle cx="17.5" cy="10.5" r=".5"></circle>
-                <circle cx="8.5" cy="7.5" r=".5"></circle>
-                <circle cx="6.5" cy="12.5" r=".5"></circle>
-                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path>
-            </svg>
-        );
+        // --- MAIN EDITOR ---
+        const ProjectEditor = ({ projectData, onSave, language, setLanguage }) => {
+            const [currentYear, setCurrentYear] = useState(projectData.currentYear || new Date().getFullYear());
+            const [projectTitle, setProjectTitle] = useState(projectData.title || translations[language].projectTitle);
+            
+            // Gestion Historique
+            const [tasks, setTasksState] = useState(projectData.tasks || []);
+            const [history, setHistory] = useState([projectData.tasks || []]);
+            const [historyPointer, setHistoryPointer] = useState(0);
 
-        const ChevronLeft = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-        );
+            const [teamMembers, setTeamMembers] = useState(projectData.teamMembers || []);
+            const [yearView, setYearView] = useState(projectData.yearView || 1);
+            const [collapsedStories, setCollapsedStories] = useState(new Set()); 
+            const [editingTask, setEditingTask] = useState(null); 
+            const [searchQuery, setSearchQuery] = useState('');
+            const [selectedTaskId, setSelectedTaskId] = useState(null);
 
-        const ChevronRight = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-        );
-
-        const Download = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-        );
-
-        const Upload = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-        );
-
-        const FileDown = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="12" y1="18" x2="12" y2="12"></line>
-                <polyline points="9 15 12 18 15 15"></polyline>
-            </svg>
-        );
-
-        const Eye = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-        );
-
-        const EyeOff = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                <line x1="1" y1="1" x2="23" y2="23"></line>
-            </svg>
-        );
-
-        const Menu = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="12" x2="21" y2="12"></line>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <line x1="3" y1="18" x2="21" y2="18"></line>
-            </svg>
-        );
-
-        const X = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-        );
-
-        const Users = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
-        );
-
-        const UserPlus = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="8.5" cy="7" r="4"></circle>
-                <line x1="20" y1="8" x2="20" y2="14"></line>
-                <line x1="23" y1="11" x2="17" y2="11"></line>
-            </svg>
-        );
-
-        const Filter = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-            </svg>
-        );
-
-        const BarChart = ({ size = 24 }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="20" x2="12" y2="10"></line>
-                <line x1="18" y1="20" x2="18" y2="4"></line>
-                <line x1="6" y1="20" x2="6" y2="16"></line>
-            </svg>
-        );
-
-        const ProjectPlanner = () => {
-            const [currentYear, setCurrentYear] = useState(2024);
-            const [language, setLanguage] = useState('fr');
-            const [projectTitle, setProjectTitle] = useState(translations['fr'].projectTitle);
             const fileInputRef = useRef(null);
             const [showColumns, setShowColumns] = useState(true);
             const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
             const [fileMenuOpen, setFileMenuOpen] = useState(false);
-            const [yearView, setYearView] = useState(1);
-            const [colorPickerOpen, setColorPickerOpen] = useState(null);
             const [teamMenuOpen, setTeamMenuOpen] = useState(false);
-            const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+            const [statsMenuOpen, setStatsMenuOpen] = useState(false);
             const [selectedMemberFilter, setSelectedMemberFilter] = useState('all');
             const [newMemberName, setNewMemberName] = useState('');
-            const [statsMenuOpen, setStatsMenuOpen] = useState(false);
-            
-            // Membres d'équipe
-            const [teamMembers, setTeamMembers] = useState([
-                { id: 1, name: 'Alice Dupont' },
-                { id: 2, name: 'Bob Martin' },
-                { id: 3, name: 'Claire Bernard' }
-            ]);
-            
-            // Palette de couleurs prédéfinies
-            const predefinedColors = [
-                '#60A5FA', // Bleu
-                '#93C5FD', // Bleu clair
-                '#34D399', // Vert
-                '#A78BFA', // Violet
-                '#F87171', // Rouge
-                '#FBBF24', // Jaune
-                '#FB923C', // Orange
-                '#EC4899', // Rose
-                '#10B981', // Vert émeraude
-                '#8B5CF6', // Violet foncé
-                '#EF4444', // Rouge vif
-                '#14B8A6'  // Turquoise
-            ];
-            
-            const [tasks, setTasks] = useState([
-                {
-                    id: 1,
-                    type: 'Story',
-                    description: 'UI and Client improvements',
-                    startDate: null,
-                    endDate: null,
-                    color: '#60A5FA',
-                    assigneeId: null,
-                    status: 'inProgress'
-                },
-                {
-                    id: 2,
-                    type: 'Task',
-                    description: 'Development',
-                    startDate: '2024-09-23',
-                    endDate: '2024-10-21',
-                    color: '#93C5FD',
-                    assigneeId: 1,
-                    status: 'completed'
-                },
-                {
-                    id: 3,
-                    type: 'Task',
-                    description: 'IAT - QA testing',
-                    startDate: '2024-10-22',
-                    endDate: '2024-11-04',
-                    color: '#93C5FD',
-                    assigneeId: 2,
-                    status: 'inProgress'
-                },
-                {
-                    id: 4,
-                    type: 'Task',
-                    description: 'UAT',
-                    startDate: '2024-11-05',
-                    endDate: '2024-11-14',
-                    color: '#93C5FD',
-                    assigneeId: 3,
-                    status: 'todo'
-                }
-            ]);
+            const [draggingTask, setDraggingTask] = useState(null); 
+            const [resizingTask, setResizingTask] = useState(null);
 
-            const getWeeksInYear = (year) => {
-                const lastDay = new Date(year, 11, 31);
-                return Math.ceil((lastDay - new Date(year, 0, 1)) / (7 * 24 * 60 * 60 * 1000));
+            const updateTasksWithHistory = (newTasks) => {
+                const nextHistory = history.slice(0, historyPointer + 1);
+                nextHistory.push(newTasks);
+                setHistory(nextHistory);
+                setHistoryPointer(nextHistory.length - 1);
+                setTasksState(newTasks);
             };
 
-            const getWeekNumber = (date) => {
-                const d = new Date(date);
-                const yearStart = new Date(d.getFullYear(), 0, 1);
-                return Math.ceil((d - yearStart) / (7 * 24 * 60 * 60 * 1000));
-            };
+            const undo = () => { if (historyPointer > 0) { const prevIndex = historyPointer - 1; setHistoryPointer(prevIndex); setTasksState(history[prevIndex]); } };
+            const redo = () => { if (historyPointer < history.length - 1) { const nextIndex = historyPointer + 1; setHistoryPointer(nextIndex); setTasksState(history[nextIndex]); } };
 
-            const formatDate = (dateString) => {
-                if (!dateString) return '';
-                const date = new Date(dateString);
-                const day = String(date.getDate()).padStart(2, '0');
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const year = date.getFullYear();
-                return `${day}/${month}/${year}`;
-            };
+            const addTask = () => updateTasksWithHistory([...tasks, { id: Date.now(), type: 'Task', description: translations[language].newTask, startDate: `${currentYear}-01-01`, endDate: `${currentYear}-01-15`, color: '#60A5FA', status: 'todo', progress: 0 }]);
+            const addStory = () => updateTasksWithHistory([...tasks, { id: Date.now(), type: 'Story', description: translations[language].newStory, startDate: `${currentYear}-01-01`, endDate: `${currentYear}-02-01`, color: '#374151', status: 'todo', progress: 0 }]);
+            const duplicateTask = (taskToClone) => { const newTask = { ...taskToClone, id: Date.now(), description: `${taskToClone.description} (Copie)` }; const index = tasks.findIndex(t => t.id === taskToClone.id); const newTaskList = [...tasks]; newTaskList.splice(index + 1, 0, newTask); updateTasksWithHistory(newTaskList); };
+            const updateTask = (id, field, val) => updateTasksWithHistory(tasks.map(t => t.id === id ? { ...t, [field]: val } : t));
+            const handleSaveTaskDetails = (updatedTask) => { updateTasksWithHistory(tasks.map(t => t.id === updatedTask.id ? updatedTask : t)); setEditingTask(null); };
+            const deleteTask = (id) => { updateTasksWithHistory(tasks.filter(t => t.id !== id)); if(selectedTaskId === id) setSelectedTaskId(null); };
+            const addTeamMember = () => { if(newMemberName.trim()){ setTeamMembers([...teamMembers, {id: Date.now(), name: newMemberName.trim()}]); setNewMemberName(''); }};
+            const deleteTeamMember = (id) => { setTeamMembers(teamMembers.filter(m => m.id !== id)); updateTasksWithHistory(tasks.map(t => t.assigneeId === id ? { ...t, assigneeId: null } : t)); };
 
-            const getInitials = (name) => {
-                if (!name) return '';
-                const parts = name.trim().split(' ');
-                if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-                return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-            };
-
-            const addTeamMember = () => {
-                if (!newMemberName.trim()) return;
-                const newMember = {
-                    id: Date.now(),
-                    name: newMemberName.trim()
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); }
+                    if (editingTask || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                    if (selectedTaskId) {
+                        if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); const t = tasks.find(t=>t.id === selectedTaskId); if(t) deleteTask(selectedTaskId); }
+                        if ((e.ctrlKey || e.metaKey) && e.key === 'd') { e.preventDefault(); const t = tasks.find(t=>t.id === selectedTaskId); if(t) duplicateTask(t); }
+                        if (e.key === 'Escape') setSelectedTaskId(null);
+                    }
                 };
-                setTeamMembers([...teamMembers, newMember]);
-                setNewMemberName('');
-            };
+                window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [historyPointer, history, selectedTaskId, tasks, editingTask]);
 
-            const deleteTeamMember = (id) => {
-                setTeamMembers(teamMembers.filter(member => member.id !== id));
-                // Retirer l'assignation des tâches qui avaient ce membre
-                setTasks(tasks.map(task => 
-                    task.assigneeId === id ? { ...task, assigneeId: null } : task
-                ));
-            };
-
-            const getMemberById = (id) => {
-                return teamMembers.find(member => member.id === id);
-            };
+            useEffect(() => { const timeoutId = setTimeout(() => onSave({ ...projectData, title: projectTitle, currentYear, tasks, teamMembers, yearView }), 500); return () => clearTimeout(timeoutId); }, [projectTitle, currentYear, tasks, teamMembers, yearView]);
 
             const getFilteredTasks = () => {
-                if (selectedMemberFilter === 'all') return tasks;
-                if (selectedMemberFilter === 'unassigned') return tasks.filter(task => !task.assigneeId);
-                return tasks.filter(task => task.assigneeId === parseInt(selectedMemberFilter));
+                let filtered = tasks;
+                if (selectedMemberFilter === 'unassigned') filtered = filtered.filter(task => !task.assigneeId);
+                else if (selectedMemberFilter !== 'all') filtered = filtered.filter(task => task.assigneeId === parseInt(selectedMemberFilter));
+                if (searchQuery.trim()) { filtered = filtered.filter(task => task.description.toLowerCase().includes(searchQuery.toLowerCase())); }
+                return filtered;
             };
-
-            const filteredTasks = getFilteredTasks();
-
-            // Fonctions de statistiques
-            const calculateProjectDuration = () => {
-                const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
-                if (tasksWithDates.length === 0) return { days: 0, weeks: 0 };
-                
-                const startDates = tasksWithDates.map(t => new Date(t.startDate));
-                const endDates = tasksWithDates.map(t => new Date(t.endDate));
-                
-                const projectStart = new Date(Math.min(...startDates));
-                const projectEnd = new Date(Math.max(...endDates));
-                
-                const diffTime = Math.abs(projectEnd - projectStart);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                const diffWeeks = Math.ceil(diffDays / 7);
-                
-                return { 
-                    days: diffDays, 
-                    weeks: diffWeeks,
-                    startDate: projectStart,
-                    endDate: projectEnd
-                };
-            };
-
-            const calculateWorkloadByWeek = () => {
-                const workload = {};
-                
-                tasks.forEach(task => {
-                    if (!task.startDate || !task.endDate) return;
-                    
-                    const start = new Date(task.startDate);
-                    const end = new Date(task.endDate);
-                    
-                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
-                        const weekKey = `${d.getFullYear()}-W${getWeekNumber(d)}`;
-                        workload[weekKey] = (workload[weekKey] || 0) + 1;
-                    }
+            const renderList = useMemo(() => {
+                const rawList = getFilteredTasks();
+                let list = []; let currentStoryId = null; let isHidden = false;
+                rawList.forEach(task => {
+                    if (task.type === 'Story') { currentStoryId = task.id; isHidden = collapsedStories.has(task.id); list.push({ ...task, isVisible: true, isHeader: true, isCollapsed: isHidden }); } 
+                    else { if (!isHidden) list.push({ ...task, isVisible: true, isHeader: false, hasParent: !!currentStoryId }); else list.push({ ...task, isVisible: false }); }
                 });
-                
-                return workload;
-            };
+                return list;
+            }, [tasks, collapsedStories, selectedMemberFilter, searchQuery]);
+            const toggleStory = (id) => { const newSet = new Set(collapsedStories); if (newSet.has(id)) newSet.delete(id); else newSet.add(id); setCollapsedStories(newSet); };
+            const calculateProjectDuration = () => { const tasksWithDates = tasks.filter(t => t.startDate && t.endDate); if (tasksWithDates.length === 0) return { days: 0, weeks: 0 }; const start = new Date(Math.min(...tasksWithDates.map(t => new Date(t.startDate)))); const end = new Date(Math.max(...tasksWithDates.map(t => new Date(t.endDate)))); const diffDays = Math.ceil(Math.abs(end - start) / (86400000)); return { days: diffDays, weeks: Math.ceil(diffDays / 7) }; };
+            const calculateProgress = () => { const total = tasks.filter(t => t.type === 'Task').length; if (total === 0) return { completed: 0, total: 0, percentage: 0 }; const completed = tasks.filter(t => t.type === 'Task' && t.status === 'completed').length; return { completed, total, percentage: Math.round((completed / total) * 100) }; };
+            const getStatusCount = () => ({ todo: tasks.filter(t => t.status === 'todo').length, inProgress: tasks.filter(t => t.status === 'inProgress').length, completed: tasks.filter(t => t.status === 'completed').length });
+            const getOverdueTasks = () => { const today = new Date(); today.setHours(0,0,0,0); return tasks.filter(t => t.endDate && new Date(t.endDate) < today && t.status !== 'completed'); };
+            const generateWeekColumns = useMemo(() => {
+                const weeks = []; const t = translations[language]; const firstDate = tasks.filter(t=>t.startDate).map(t=>new Date(t.startDate)).sort((a,b)=>a-b)[0]; const startYear = firstDate ? firstDate.getFullYear() : currentYear;
+                for (let y = 0; y < yearView; y++) { const yr = (tasks.length>0 && firstDate ? startYear : currentYear) + y; const totalWeeks = getWeeksInYear(yr); for (let w = 1; w <= totalWeeks; w++) weeks.push({ week: w, month: t.months[new Date(yr, 0, 1 + (w-1)*7).getMonth()], year: yr }); }
+                if(!firstDate) return weeks; const firstW = getWeekNumber(firstDate); return weeks.filter(c => !(c.year === startYear && c.week < firstW - 1));
+            }, [currentYear, tasks, language, yearView]);
+            const getTodayPosition = () => { if(generateWeekColumns.length === 0) return null; const today = new Date(); const todayYear = today.getFullYear(); const todayWeek = getWeekNumber(today); let colIndex = -1; for(let i=0; i<generateWeekColumns.length; i++) { if(generateWeekColumns[i].year === todayYear && generateWeekColumns[i].week === todayWeek) { colIndex = i; break; } } if (colIndex !== -1) { const dayOfWeek = today.getDay(); const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1; return (colIndex * 30) + ((adjustedDay / 7) * 30); } return null; };
+            const todayPos = getTodayPosition();
+            const getTaskPosition = (task) => { if (!task.startDate || !task.endDate || generateWeekColumns.length === 0) return null; const start = new Date(task.startDate); const end = new Date(task.endDate); const firstCol = generateWeekColumns[0]; const startOffset = (start.getFullYear() - firstCol.year) * 52 + getWeekNumber(start) - firstCol.week; const duration = Math.ceil((end - start) / 604800000); return { left: Math.max(0, startOffset), width: Math.max(1, duration + 1) }; };
 
-            const getOverdueTasks = () => {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                
-                return tasks.filter(task => {
-                    if (!task.endDate || task.status === 'completed') return false;
-                    const endDate = new Date(task.endDate);
-                    return endDate < today;
-                });
-            };
-
-            const calculateProgress = () => {
-                const totalTasks = tasks.filter(t => t.type === 'Task').length;
-                if (totalTasks === 0) return { completed: 0, total: 0, percentage: 0 };
-                
-                const completedTasks = tasks.filter(t => t.type === 'Task' && t.status === 'completed').length;
-                const percentage = Math.round((completedTasks / totalTasks) * 100);
-                
-                return { completed: completedTasks, total: totalTasks, percentage };
-            };
-
-            const getStatusCount = () => {
-                return {
-                    todo: tasks.filter(t => t.status === 'todo').length,
-                    inProgress: tasks.filter(t => t.status === 'inProgress').length,
-                    completed: tasks.filter(t => t.status === 'completed').length,
-                    blocked: tasks.filter(t => t.status === 'blocked').length
-                };
-            };
-
-            const generateWeekColumns = () => {
-                const weeks = [];
-                const t = translations[language];
-                
-                for (let yearOffset = 0; yearOffset < yearView; yearOffset++) {
-                    const year = currentYear + yearOffset;
-                    const totalWeeks = getWeeksInYear(year);
-                    
-                    for (let week = 1; week <= totalWeeks; week++) {
-                        const date = new Date(year, 0, 1 + (week - 1) * 7);
-                        const monthIndex = date.getMonth();
-                        const month = t.months[monthIndex];
-                        weeks.push({ week, month, year });
-                    }
-                }
-                
-                return weeks;
-            };
-
-            const getFirstTaskDate = () => {
-                const dates = filteredTasks.filter(task => task.startDate).map(task => new Date(task.startDate));
-                if (dates.length === 0) return null;
-                return new Date(Math.min(...dates));
-            };
-
-            const getFilteredWeekColumns = () => {
-                const allWeeks = generateWeekColumns();
-                const firstDate = getFirstTaskDate();
-                
-                if (!firstDate) return allWeeks;
-                
-                const firstYear = firstDate.getFullYear();
-                const firstWeek = getWeekNumber(firstDate);
-                
-                return allWeeks.filter(col => {
-                    if (col.year > firstYear) return true;
-                    if (col.year < firstYear) return false;
-                    return col.week >= firstWeek;
-                });
-            };
-
-            const weekColumns = useMemo(() => getFilteredWeekColumns(), [currentYear, filteredTasks, language, yearView]);
-
-            const addTask = () => {
-                const startDate = new Date(currentYear, 0, 1);
-                const endDate = new Date(currentYear, 0, 28);
-                const t = translations[language];
-                const newTask = {
-                    id: Date.now(),
-                    type: 'Task',
-                    description: t.newTask,
-                    startDate: startDate.toISOString().split('T')[0],
-                    endDate: endDate.toISOString().split('T')[0],
-                    color: '#60A5FA',
-                    assigneeId: null,
-                    status: 'todo'
-                };
-                setTasks([...tasks, newTask]);
-            };
-
-            const deleteTask = (id) => {
-                setTasks(tasks.filter(task => task.id !== id));
-            };
-
-            const updateTask = (id, field, value) => {
-                setTasks(tasks.map(task => task.id === id ? { ...task, [field]: value } : task));
-            };
-
-            const getStoryDates = (storyIndex) => {
-                const storyTasks = [];
-                for (let i = storyIndex + 1; i < filteredTasks.length; i++) {
-                    if (filteredTasks[i].type === 'Story') break;
-                    if (filteredTasks[i].type === 'Task') storyTasks.push(filteredTasks[i]);
-                }
-
-                if (storyTasks.length === 0) return { startDate: null, endDate: null };
-
-                const startDates = storyTasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d));
-                const endDates = storyTasks.map(t => new Date(t.endDate)).filter(d => !isNaN(d));
-
-                if (startDates.length === 0 || endDates.length === 0) return { startDate: null, endDate: null };
-
-                const minStart = new Date(Math.min(...startDates));
-                const maxEnd = new Date(Math.max(...endDates));
-
-                return {
-                    startDate: minStart.toISOString().split('T')[0],
-                    endDate: maxEnd.toISOString().split('T')[0]
-                };
-            };
-
-            const getStoryDatesFromList = (taskList, storyIndex) => {
-                const storyTasks = [];
-                for (let i = storyIndex + 1; i < taskList.length; i++) {
-                    if (taskList[i].type === 'Story') break;
-                    if (taskList[i].type === 'Task') storyTasks.push(taskList[i]);
-                }
-
-                if (storyTasks.length === 0) return { startDate: null, endDate: null };
-
-                const startDates = storyTasks.map(t => new Date(t.startDate)).filter(d => !isNaN(d));
-                const endDates = storyTasks.map(t => new Date(t.endDate)).filter(d => !isNaN(d));
-
-                if (startDates.length === 0 || endDates.length === 0) return { startDate: null, endDate: null };
-
-                const minStart = new Date(Math.min(...startDates));
-                const maxEnd = new Date(Math.max(...endDates));
-
-                return {
-                    startDate: minStart.toISOString().split('T')[0],
-                    endDate: maxEnd.toISOString().split('T')[0]
-                };
-            };
-
-            const getTaskPosition = (task) => {
-                if (!task.startDate || !task.endDate) return null;
-                
-                const startDate = new Date(task.startDate);
-                const endDate = new Date(task.endDate);
-                const startYear = startDate.getFullYear();
-                const endYear = endDate.getFullYear();
-                const lastDisplayedYear = currentYear + yearView - 1;
-                
-                if (endYear < currentYear || startYear > lastDisplayedYear) return null;
-
-                let startWeekPos = 0;
-                let endWeekPos = 0;
-                
-                if (startYear < currentYear) {
-                    startWeekPos = 0;
-                } else {
-                    for (let y = currentYear; y < startYear; y++) {
-                        startWeekPos += getWeeksInYear(y);
-                    }
-                    startWeekPos += getWeekNumber(startDate);
-                }
-                
-                if (endYear > lastDisplayedYear) {
-                    for (let y = currentYear; y <= lastDisplayedYear; y++) {
-                        endWeekPos += getWeeksInYear(y);
-                    }
-                } else {
-                    for (let y = currentYear; y < endYear; y++) {
-                        endWeekPos += getWeeksInYear(y);
-                    }
-                    endWeekPos += getWeekNumber(endDate);
-                }
-
-                const firstDisplayedWeek = weekColumns.length > 0 ? weekColumns[0].week : 1;
-                let weeksBeforeFirst = 0;
-                if (weekColumns[0]) {
-                    for (let y = currentYear; y < weekColumns[0].year; y++) {
-                        weeksBeforeFirst += getWeeksInYear(y);
-                    }
-                    weeksBeforeFirst += firstDisplayedWeek - 1;
-                }
-                
-                const adjustedStart = startWeekPos - weeksBeforeFirst;
-                const adjustedEnd = endWeekPos - weeksBeforeFirst;
-                const width = adjustedEnd - adjustedStart + 1;
-                
-                return { left: Math.max(0, adjustedStart), width: Math.max(1, width) };
-            };
-
-            const exportJSON = () => {
-                const data = { projectTitle, currentYear, language, yearView, tasks, teamMembers };
-                const jsonString = JSON.stringify(data, null, 2);
-                const blob = new Blob([jsonString], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.download = `${projectTitle.replace(/\s+/g, '_')}_${currentYear}.json`;
-                link.href = url;
-                link.click();
-                URL.revokeObjectURL(url);
-            };
-
-            const importJSON = (event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-
-                const t = translations[language];
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const data = JSON.parse(e.target.result);
-                        if (data.projectTitle) setProjectTitle(data.projectTitle);
-                        if (data.currentYear) setCurrentYear(data.currentYear);
-                        if (data.tasks && Array.isArray(data.tasks)) {
-                            // Ajouter le statut par défaut si manquant
-                            const updatedTasks = data.tasks.map(task => ({
-                                ...task,
-                                status: task.status || 'todo'
-                            }));
-                            setTasks(updatedTasks);
-                        }
-                        if (data.language) setLanguage(data.language);
-                        if (data.yearView) setYearView(data.yearView);
-                        if (data.teamMembers && Array.isArray(data.teamMembers)) setTeamMembers(data.teamMembers);
-                    } catch (error) {
-                        alert(t.errorJSON);
-                    }
-                };
-                reader.readAsText(file);
-                
-                if (fileInputRef.current) fileInputRef.current.value = '';
-            };
-
-            const exportAsImage = () => {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                
-                const cellWidth = 30;
-                const rowHeight = 48;
-                const headerHeight = 80;
-                const monthHeaderHeight = 24;
-                const columnHeaderHeight = 32;
-                const typeColWidth = 112;
-                const descColWidth = 320;
-                const startColWidth = 128;
-                const endColWidth = 128;
-                
-                const totalWidth = typeColWidth + descColWidth + startColWidth + endColWidth + (weekColumns.length * cellWidth) + 20;
-                const totalHeight = headerHeight + monthHeaderHeight + columnHeaderHeight + (tasks.length * rowHeight) + 20;
-                
-                canvas.width = totalWidth;
-                canvas.height = totalHeight;
-                
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, totalWidth, totalHeight);
-                
-                const gradient = ctx.createLinearGradient(0, 0, totalWidth, 0);
-                gradient.addColorStop(0, '#2563eb');
-                gradient.addColorStop(1, '#1d4ed8');
-                ctx.fillStyle = gradient;
-                ctx.fillRect(0, 0, totalWidth, headerHeight);
-                
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 24px Arial';
-                ctx.fillText(projectTitle, 20, 35);
-                ctx.font = 'bold 20px Arial';
-                const yearText = yearView === 1 ? currentYear.toString() : `${currentYear}-${currentYear + yearView - 1}`;
-                ctx.fillText(yearText, 20, 65);
-                
-                let yOffset = headerHeight;
-                
-                ctx.fillStyle = '#f3f4f6';
-                ctx.fillRect(0, yOffset, totalWidth, monthHeaderHeight);
-                
-                const weekStartX = typeColWidth + descColWidth + startColWidth + endColWidth;
-                ctx.fillStyle = '#374151';
-                ctx.font = 'bold 11px Arial';
-                
-                let currentMonth = '';
-                let monthStartIdx = 0;
-                weekColumns.forEach((col, idx) => {
-                    const monthYearKey = `${col.month}-${col.year}`;
-                    if (monthYearKey !== currentMonth) {
-                        if (currentMonth !== '') {
-                            const monthWidth = (idx - monthStartIdx) * cellWidth;
-                            const x = weekStartX + (monthStartIdx * cellWidth);
-                            const prevCol = weekColumns[monthStartIdx];
-                            const label = yearView > 1 ? `${prevCol.month} ${prevCol.year}` : prevCol.month;
-                            ctx.fillText(label, x + monthWidth / 2 - ctx.measureText(label).width / 2, yOffset + 16);
-                        }
-                        currentMonth = monthYearKey;
-                        monthStartIdx = idx;
-                    }
-                    if (idx === weekColumns.length - 1) {
-                        const monthWidth = (idx - monthStartIdx + 1) * cellWidth;
-                        const x = weekStartX + (monthStartIdx * cellWidth);
-                        const label = yearView > 1 ? `${col.month} ${col.year}` : col.month;
-                        ctx.fillText(label, x + monthWidth / 2 - ctx.measureText(label).width / 2, yOffset + 16);
-                    }
-                });
-                
-                yOffset += monthHeaderHeight;
-                
-                ctx.fillStyle = '#f9fafb';
-                ctx.fillRect(0, yOffset, totalWidth, columnHeaderHeight);
-                
-                ctx.fillStyle = '#374151';
-                ctx.font = 'bold 14px Arial';
-                const t = translations[language];
-                ctx.fillText(t.type, 10, yOffset + 20);
-                ctx.fillText(t.description, typeColWidth + 10, yOffset + 20);
-                ctx.fillText(t.start, typeColWidth + descColWidth + 10, yOffset + 20);
-                ctx.fillText(t.end, typeColWidth + descColWidth + startColWidth + 10, yOffset + 20);
-                
-                ctx.font = '11px Arial';
-                ctx.fillStyle = '#4b5563';
-                
-                weekColumns.forEach((col, idx) => {
-                    const x = weekStartX + (idx * cellWidth);
-                    ctx.fillText(col.week.toString(), x + cellWidth/2 - 6, yOffset + 20);
-                    
-                    ctx.strokeStyle = '#e5e7eb';
-                    ctx.beginPath();
-                    ctx.moveTo(x, yOffset);
-                    ctx.lineTo(x, totalHeight);
-                    ctx.stroke();
-                });
-                
-                yOffset += columnHeaderHeight;
-                
-                tasks.forEach((task, taskIdx) => {
-                    const y = yOffset + (taskIdx * rowHeight);
-                    
-                    const isStory = task.type === 'Story';
-                    const storyDates = isStory ? getStoryDatesFromList(tasks, taskIdx) : null;
-                    const displayStartDate = isStory ? storyDates?.startDate : task.startDate;
-                    const displayEndDate = isStory ? storyDates?.endDate : task.endDate;
-                    const taskToDisplay = isStory ? { ...task, startDate: displayStartDate, endDate: displayEndDate } : task;
-                    const assignee = task.assigneeId ? getMemberById(task.assigneeId) : null;
-                    
-                    if (taskIdx % 2 === 0) {
-                        ctx.fillStyle = '#ffffff';
-                    } else {
-                        ctx.fillStyle = '#f9fafb';
-                    }
-                    ctx.fillRect(0, y, totalWidth, rowHeight);
-                    
-                    ctx.strokeStyle = '#e5e7eb';
-                    ctx.beginPath();
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(totalWidth, y);
-                    ctx.stroke();
-                    
-                    ctx.fillStyle = '#000000';
-                    ctx.font = '13px Arial';
-                    ctx.fillText(task.type, 10, y + 28);
-                    ctx.fillText(task.description.length > 35 ? task.description.substring(0, 35) + '...' : task.description, typeColWidth + 10, y + 28);
-                    ctx.fillText(displayStartDate ? formatDate(displayStartDate) : '-', typeColWidth + descColWidth + 10, y + 28);
-                    ctx.fillText(displayEndDate ? formatDate(displayEndDate) : '-', typeColWidth + descColWidth + startColWidth + 10, y + 28);
-                    
-                    const position = getTaskPosition(taskToDisplay);
-                    if (position && displayStartDate && displayEndDate) {
-                        const barX = weekStartX + (position.left * cellWidth);
-                        const barWidth = position.width * cellWidth;
-                        const barY = y + 8;
-                        const barHeight = rowHeight - 16;
-                        
-                        ctx.fillStyle = task.color;
-                        ctx.beginPath();
-                        ctx.roundRect(barX + 2, barY, barWidth - 4, barHeight, 4);
-                        ctx.fill();
-                        
-                        // Afficher les initiales si assigné
-                        if (assignee) {
-                            ctx.fillStyle = '#ffffff';
-                            ctx.beginPath();
-                            ctx.arc(barX + 8, barY + 6, 10, 0, Math.PI * 2);
-                            ctx.fill();
-                            ctx.strokeStyle = task.color;
-                            ctx.lineWidth = 2;
-                            ctx.stroke();
-                            ctx.lineWidth = 1;
-                            ctx.fillStyle = task.color;
-                            ctx.font = 'bold 8px Arial';
-                            const initials = getInitials(assignee.name);
-                            ctx.fillText(initials, barX + 8 - ctx.measureText(initials).width / 2, barY + 10);
-                        }
-                        
-                        ctx.fillStyle = '#ffffff';
-                        ctx.font = 'bold 10px Arial';
-                        const text = `${formatDate(displayStartDate)} - ${formatDate(displayEndDate)}`;
-                        const textWidth = ctx.measureText(text).width;
-                        if (barWidth > textWidth + 10) {
-                            ctx.fillText(text, barX + (barWidth - textWidth) / 2, y + 30);
-                        }
-                    }
-                });
-                
-                canvas.toBlob((blob) => {
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.download = `${projectTitle.replace(/\s+/g, '_')}_${currentYear}.png`;
-                    link.href = url;
-                    link.click();
-                    URL.revokeObjectURL(url);
-                });
-            };
+            const handleMouseDown = (e, task) => { if (e.target.closest('button')) return; if (!task.isHeader) setSelectedTaskId(task.id); e.preventDefault(); setDraggingTask({ id: task.id, startX: e.clientX, initialStartDate: task.startDate, initialEndDate: task.endDate, weeksMoved: 0 }); };
+            const handleResizeMouseDown = (e, task) => { e.stopPropagation(); e.preventDefault(); setResizingTask({ id: task.id, startX: e.clientX, initialEndDate: task.endDate, weeksAdded: 0, startDate: task.startDate }); };
+            const handleGlobalMouseMove = useCallback((e) => {
+                if (resizingTask) { const diffX = e.clientX - resizingTask.startX; const weeksAdded = Math.round(diffX / 30); if (weeksAdded !== resizingTask.weeksAdded) { const newEndDate = addWeeksToDate(resizingTask.initialEndDate, weeksAdded); if (new Date(newEndDate) >= new Date(resizingTask.startDate)) { setTasksState(prev => prev.map(t => t.id === resizingTask.id ? { ...t, endDate: newEndDate } : t)); setResizingTask(prev => ({ ...prev, weeksAdded })); } } } 
+                else if (draggingTask) { const diffX = e.clientX - draggingTask.startX; const weeksMoved = Math.round(diffX / 30); if (weeksMoved !== draggingTask.weeksMoved) { const newStart = addWeeksToDate(draggingTask.initialStartDate, weeksMoved); const newEnd = addWeeksToDate(draggingTask.initialEndDate, weeksMoved); setTasksState(prev => prev.map(t => t.id === draggingTask.id ? { ...t, startDate: newStart, endDate: newEnd } : t)); setDraggingTask(prev => ({ ...prev, weeksMoved })); } }
+            }, [draggingTask, resizingTask]);
+            const handleGlobalMouseUp = useCallback(() => { 
+                if (draggingTask || resizingTask) { setTasksState(currentTasks => { const lastHistory = history[historyPointer]; if (JSON.stringify(currentTasks) !== JSON.stringify(lastHistory)) { const nextHistory = history.slice(0, historyPointer + 1); nextHistory.push(currentTasks); setHistory(nextHistory); setHistoryPointer(nextHistory.length - 1); } return currentTasks; }); }
+                setDraggingTask(null); setResizingTask(null); 
+            }, [draggingTask, resizingTask, history, historyPointer]);
+            useEffect(() => { if (draggingTask || resizingTask) { window.addEventListener('mousemove', handleGlobalMouseMove); window.addEventListener('mouseup', handleGlobalMouseUp); document.body.classList.add('no-select'); if(draggingTask) document.body.classList.add('cursor-grabbing'); if(resizingTask) document.body.classList.add('cursor-ew-resize'); } return () => { window.removeEventListener('mousemove', handleGlobalMouseMove); window.removeEventListener('mouseup', handleGlobalMouseUp); document.body.classList.remove('no-select', 'cursor-grabbing', 'cursor-ew-resize'); }; }, [draggingTask, resizingTask, handleGlobalMouseMove, handleGlobalMouseUp]);
+            
+            const exportAsImage = () => alert("Export image désactivé.");
+            const exportJSON = () => { const blob = new Blob([JSON.stringify({ ...projectData, title: projectTitle, tasks, teamMembers, currentYear, yearView }, null, 2)], {type: 'application/json'}); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${projectTitle.replace(/\s+/g, '_')}.json`; link.click(); };
+            const importJSON = (e) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = (evt) => { try { const data = JSON.parse(evt.target.result); if(data.title) setProjectTitle(data.title); if(data.tasks) updateTasksWithHistory(data.tasks); if(data.teamMembers) setTeamMembers(data.teamMembers); if(data.currentYear) setCurrentYear(data.currentYear); if(data.yearView) setYearView(data.yearView); } catch (err) { alert(translations[language].errorJSON); } }; reader.readAsText(file); e.target.value = ''; };
+            const exportCSV = () => { const t = translations[language]; let csvContent = "data:text/csv;charset=utf-8,"; csvContent += `ID,${t.type},${t.description},${t.status},${t.assignee},${t.start},${t.end},${t.progress}\n`; tasks.forEach(task => { const assigneeName = task.assigneeId ? (teamMembers.find(m => m.id === task.assigneeId)?.name || "") : ""; const desc = `"${task.description.replace(/"/g, '""')}"`; csvContent += `${task.id},${task.type},${desc},${task.status},"${assigneeName}",${task.startDate || ''},${task.endDate || ''},${task.progress || 0}%\n`; }); const encodedUri = encodeURI(csvContent); const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `${projectTitle.replace(/\s+/g, '_')}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link); };
 
             return (
-                <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-6">
+                <div className="h-full flex flex-col bg-slate-50 overflow-hidden text-slate-700 font-sans">
                     <input ref={fileInputRef} type="file" accept=".json" onChange={importJSON} style={{ display: 'none' }} />
+                    {editingTask && <TaskModal task={editingTask} onClose={() => setEditingTask(null)} onSave={handleSaveTaskDetails} language={language} teamMembers={teamMembers} predefinedColors={predefinedColors} />}
                     
-                    <div className="max-w-[100vw] mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
-                        <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-3 sm:p-4 md:p-6">
-                            <div className="flex items-center justify-between flex-wrap gap-2">
-                                <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                                    <Calendar size={20} className="text-white flex-shrink-0" />
-                                    <input
-                                        type="text"
-                                        value={projectTitle}
-                                        onChange={(e) => setProjectTitle(e.target.value)}
-                                        className="text-lg sm:text-xl md:text-2xl font-bold bg-transparent text-white border-b-2 border-transparent hover:border-white/50 focus:border-white focus:outline-none transition-colors px-1 sm:px-2 flex-1 min-w-0"
-                                        placeholder={translations[language].projectTitle}
-                                    />
+                    {/* HEADER */}
+                    <div className="bg-white border-b border-slate-200 px-5 py-3 shadow-sm z-20">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                            {/* GAUCHE */}
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg"><Menu/></button>
+                                <div className="flex flex-col min-w-0">
+                                    <input type="text" value={projectTitle} onChange={(e)=>setProjectTitle(e.target.value)} className="font-bold text-xl text-slate-900 bg-transparent outline-none truncate hover:bg-slate-50 rounded px-1 -ml-1 transition" />
+                                    <div className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                                        <span>{tasks.length} {translations[language].taskCount}</span>
+                                        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                                        <span>{calculateProgress().percentage}% {translations[language].completed}</span>
+                                    </div>
                                 </div>
-                                
-                                <button
-                                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                                    className="lg:hidden p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-                                >
-                                    {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-                                </button>
-
-                                <div className="hidden lg:flex items-center gap-2 xl:gap-3">
-                                    <select
-                                        value={language}
-                                        onChange={(e) => setLanguage(e.target.value)}
-                                        className="bg-white/20 text-white text-sm font-medium px-3 py-2 rounded-lg focus:outline-none cursor-pointer hover:bg-white/30 transition-colors"
-                                    >
-                                        <option value="fr" className="text-gray-900">FR</option>
-                                        <option value="en" className="text-gray-900">EN</option>
-                                        <option value="ro" className="text-gray-900">RO</option>
-                                    </select>
-
-                                    <button
-                                        onClick={() => setShowColumns(!showColumns)}
-                                        className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-                                        title={showColumns ? translations[language].hideColumns : translations[language].showColumns}
-                                    >
-                                        {showColumns ? <Eye size={20} /> : <EyeOff size={20} />}
-                                    </button>
-
-                                    <div className="h-6 w-px bg-white/30"></div>
-
-                                    <div className="relative">
-                                        <button 
-                                            onClick={() => setStatsMenuOpen(!statsMenuOpen)}
-                                            className="flex items-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors text-sm font-medium"
-                                        >
-                                            <BarChart size={18} />
-                                            {translations[language].statistics}
-                                        </button>
-                                        {statsMenuOpen && (
-                                            <>
-                                                <div className="fixed inset-0 z-40" onClick={() => setStatsMenuOpen(false)}></div>
-                                                <div className="absolute right-0 mt-2 w-[600px] bg-white rounded-lg shadow-xl z-50 p-6 max-h-[80vh] overflow-y-auto">
-                                                    <h3 className="font-bold text-xl text-gray-800 mb-4">{translations[language].statistics}</h3>
-                                                    
-                                                    {/* Durée du projet */}
-                                                    <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                                                        <h4 className="font-semibold text-gray-700 mb-2">{translations[language].projectDuration}</h4>
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div>
-                                                                <p className="text-3xl font-bold text-blue-600">
-                                                                    {calculateProjectDuration().days}
-                                                                </p>
-                                                                <p className="text-sm text-gray-600">{translations[language].days}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-3xl font-bold text-blue-600">
-                                                                    {calculateProjectDuration().weeks}
-                                                                </p>
-                                                                <p className="text-sm text-gray-600">{translations[language].weeks}</p>
-                                                            </div>
-                                                        </div>
-                                                        {calculateProjectDuration().startDate && (
-                                                            <div className="mt-3 text-xs text-gray-600">
-                                                                <p>{translations[language].startDate}: {formatDate(calculateProjectDuration().startDate.toISOString().split('T')[0])}</p>
-                                                                <p>{translations[language].endDate}: {formatDate(calculateProjectDuration().endDate.toISOString().split('T')[0])}</p>
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Progression */}
-                                                    <div className="mb-6 p-4 bg-green-50 rounded-lg">
-                                                        <h4 className="font-semibold text-gray-700 mb-2">{translations[language].progressChart}</h4>
-                                                        <div className="mb-3">
-                                                            <div className="flex justify-between text-sm mb-1">
-                                                                <span className="text-gray-600">{translations[language].completionRate}</span>
-                                                                <span className="font-bold text-green-600">{calculateProgress().percentage}%</span>
-                                                            </div>
-                                                            <div className="w-full bg-gray-200 rounded-full h-4">
-                                                                <div 
-                                                                    className="bg-green-500 h-4 rounded-full transition-all duration-500"
-                                                                    style={{ width: `${calculateProgress().percentage}%` }}
-                                                                ></div>
-                                                            </div>
-                                                            <p className="text-xs text-gray-600 mt-1">
-                                                                {calculateProgress().completed} / {calculateProgress().total} {translations[language].totalTasks}
-                                                            </p>
-                                                        </div>
-                                                        
-                                                        <div className="grid grid-cols-4 gap-2 mt-4">
-                                                            <div className="text-center p-2 bg-white rounded">
-                                                                <p className="text-lg font-bold text-gray-600">{getStatusCount().todo}</p>
-                                                                <p className="text-xs text-gray-500">{translations[language].todo}</p>
-                                                            </div>
-                                                            <div className="text-center p-2 bg-white rounded">
-                                                                <p className="text-lg font-bold text-blue-600">{getStatusCount().inProgress}</p>
-                                                                <p className="text-xs text-gray-500">{translations[language].inProgress}</p>
-                                                            </div>
-                                                            <div className="text-center p-2 bg-white rounded">
-                                                                <p className="text-lg font-bold text-green-600">{getStatusCount().completed}</p>
-                                                                <p className="text-xs text-gray-500">{translations[language].completed}</p>
-                                                            </div>
-                                                            <div className="text-center p-2 bg-white rounded">
-                                                                <p className="text-lg font-bold text-red-600">{getStatusCount().blocked}</p>
-                                                                <p className="text-xs text-gray-500">{translations[language].blocked}</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Tâches en retard */}
-                                                    <div className="mb-6 p-4 bg-red-50 rounded-lg">
-                                                        <h4 className="font-semibold text-gray-700 mb-2">{translations[language].overdueTasks}</h4>
-                                                        {getOverdueTasks().length === 0 ? (
-                                                            <p className="text-green-600 font-medium">✓ {translations[language].noOverdue}</p>
-                                                        ) : (
-                                                            <div className="space-y-2">
-                                                                <p className="text-2xl font-bold text-red-600 mb-3">{getOverdueTasks().length}</p>
-                                                                {getOverdueTasks().map(task => (
-                                                                    <div key={task.id} className="bg-white p-2 rounded border-l-4 border-red-500">
-                                                                        <p className="font-medium text-sm text-gray-800">{task.description}</p>
-                                                                        <p className="text-xs text-gray-600">
-                                                                            {translations[language].endDate}: {formatDate(task.endDate)}
-                                                                        </p>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Charge de travail */}
-                                                    <div className="mb-4 p-4 bg-purple-50 rounded-lg">
-                                                        <h4 className="font-semibold text-gray-700 mb-3">{translations[language].workloadByWeek}</h4>
-                                                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                                                            {Object.entries(calculateWorkloadByWeek())
-                                                                .sort(([a], [b]) => a.localeCompare(b))
-                                                                .map(([week, count]) => (
-                                                                    <div key={week} className="flex items-center gap-3">
-                                                                        <span className="text-xs text-gray-600 w-20">{week}</span>
-                                                                        <div className="flex-1 bg-gray-200 rounded-full h-6 relative">
-                                                                            <div 
-                                                                                className="bg-purple-500 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                                                                                style={{ width: `${(count / Math.max(...Object.values(calculateWorkloadByWeek()))) * 100}%`, minWidth: '30px' }}
-                                                                            >
-                                                                                {count}
-                                                                            </div>
-                                                                        </div>
-                                                                        <span className="text-xs text-gray-600 w-24">{count} {translations[language].tasksActive}</span>
-                                                                    </div>
-                                                                ))
-                                                            }
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-
-                                    <div className="h-6 w-px bg-white/30"></div>
-
-                                    <div className="relative">
-                                        <button 
-                                            onClick={() => setTeamMenuOpen(!teamMenuOpen)}
-                                            className="flex items-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors text-sm font-medium"
-                                        >
-                                            <Users size={18} />
-                                            {translations[language].manageTeam}
-                                        </button>
-                                        {teamMenuOpen && (
-                                            <>
-                                                <div className="fixed inset-0 z-40" onClick={() => setTeamMenuOpen(false)}></div>
-                                                <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl z-50 p-4">
-                                                    <h3 className="font-bold text-gray-800 mb-3">{translations[language].manageTeam}</h3>
-                                                    
-                                                    <div className="flex gap-2 mb-3">
-                                                        <input
-                                                            type="text"
-                                                            value={newMemberName}
-                                                            onChange={(e) => setNewMemberName(e.target.value)}
-                                                            onKeyPress={(e) => e.key === 'Enter' && addTeamMember()}
-                                                            placeholder={translations[language].memberName}
-                                                            className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                        />
-                                                        <button
-                                                            onClick={addTeamMember}
-                                                            className="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
-                                                        >
-                                                            <UserPlus size={18} />
-                                                        </button>
-                                                    </div>
-                                                    
-                                                    <div className="max-h-60 overflow-y-auto space-y-2">
-                                                        {teamMembers.map(member => (
-                                                            <div key={member.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg hover:bg-gray-100">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">
-                                                                        {getInitials(member.name)}
-                                                                    </div>
-                                                                    <span className="text-sm text-gray-700">{member.name}</span>
-                                                                </div>
-                                                                <button
-                                                                    onClick={() => deleteTeamMember(member.id)}
-                                                                    className="p-1 hover:bg-red-100 rounded text-red-600 transition-colors"
-                                                                    title={translations[language].deleteMember}
-                                                                >
-                                                                    <Trash2 size={16} />
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                        {teamMembers.length === 0 && (
-                                                            <p className="text-sm text-gray-500 text-center py-4">{translations[language].addMember}</p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-
-                                    <div className="relative">
-                                        <button 
-                                            onClick={() => setFilterMenuOpen(!filterMenuOpen)}
-                                            className="flex items-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors text-sm font-medium"
-                                        >
-                                            <Filter size={18} />
-                                            {translations[language].filterByMember}
-                                        </button>
-                                        {filterMenuOpen && (
-                                            <>
-                                                <div className="fixed inset-0 z-40" onClick={() => setFilterMenuOpen(false)}></div>
-                                                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl z-50 py-2">
-                                                    <button
-                                                        onClick={() => { setSelectedMemberFilter('all'); setFilterMenuOpen(false); }}
-                                                        className={`w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-100 text-sm transition-colors text-left ${selectedMemberFilter === 'all' ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
-                                                    >
-                                                        {translations[language].allMembers}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => { setSelectedMemberFilter('unassigned'); setFilterMenuOpen(false); }}
-                                                        className={`w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-100 text-sm transition-colors text-left ${selectedMemberFilter === 'unassigned' ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
-                                                    >
-                                                        {translations[language].noAssignee}
-                                                    </button>
-                                                    {teamMembers.length > 0 && <div className="border-t my-1"></div>}
-                                                    {teamMembers.map(member => (
-                                                        <button
-                                                            key={member.id}
-                                                            onClick={() => { setSelectedMemberFilter(member.id.toString()); setFilterMenuOpen(false); }}
-                                                            className={`w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-100 text-sm transition-colors text-left ${selectedMemberFilter === member.id.toString() ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
-                                                        >
-                                                            <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">
-                                                                {getInitials(member.name)}
-                                                            </div>
-                                                            {member.name}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-
-                                    <div className="h-6 w-px bg-white/30"></div>
-
-                                    <button onClick={() => setCurrentYear(currentYear - 1)} className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
-                                        <ChevronLeft size={20} />
-                                    </button>
-                                    <span className="text-lg font-bold text-white min-w-[90px] text-center">
-                                        {yearView === 1 ? currentYear : `${currentYear}-${currentYear + yearView - 1}`}
-                                    </span>
-                                    <button onClick={() => setCurrentYear(currentYear + 1)} className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors">
-                                        <ChevronRight size={20} />
-                                    </button>
-
-                                    <div className="h-6 w-px bg-white/30"></div>
-
-                                    <select
-                                        value={yearView}
-                                        onChange={(e) => setYearView(parseInt(e.target.value))}
-                                        className="bg-white/20 text-white text-sm font-medium px-3 py-2 rounded-lg focus:outline-none cursor-pointer hover:bg-white/30 transition-colors"
-                                    >
-                                        <option value="1" className="text-gray-900">📅 {translations[language].oneYear}</option>
-                                        <option value="2" className="text-gray-900">📅 {translations[language].twoYears}</option>
-                                        <option value="3" className="text-gray-900">📅 {translations[language].threeYears}</option>
-                                    </select>
-
-                                    <div className="h-6 w-px bg-white/30"></div>
-
-                                    <div className="relative">
-                                        <button 
-                                            onClick={() => setFileMenuOpen(!fileMenuOpen)}
-                                            className="flex items-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors text-sm font-medium"
-                                        >
-                                            📁 {translations[language].file}
-                                        </button>
-                                        {fileMenuOpen && (
-                                            <>
-                                                <div className="fixed inset-0 z-40" onClick={() => setFileMenuOpen(false)}></div>
-                                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl z-50">
-                                                    <button
-                                                        onClick={() => { exportJSON(); setFileMenuOpen(false); }}
-                                                        className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-100 text-gray-700 text-sm transition-colors rounded-t-lg text-left"
-                                                    >
-                                                        <FileDown size={18} />
-                                                        {translations[language].exportJSON}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => { fileInputRef.current?.click(); setFileMenuOpen(false); }}
-                                                        className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-100 text-gray-700 text-sm transition-colors text-left"
-                                                    >
-                                                        <Upload size={18} />
-                                                        {translations[language].importJSON}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => { exportAsImage(); setFileMenuOpen(false); }}
-                                                        className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-100 text-gray-700 text-sm transition-colors rounded-b-lg text-left"
-                                                    >
-                                                        <Download size={18} />
-                                                        {translations[language].exportImage}
-                                                    </button>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-
-                                    <div className="h-6 w-px bg-white/30"></div>
-
-                                    <button
-                                        onClick={addTask}
-                                        className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors text-sm font-medium"
-                                    >
-                                        <Plus size={18} />
-                                        {translations[language].addTask}
-                                    </button>
+                                <div className="hidden md:flex items-center bg-slate-100 rounded-full px-3 py-1.5 border border-slate-200 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-all w-64">
+                                    <Search size={16} className="text-slate-400" />
+                                    <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={translations[language].search} className="bg-transparent border-none focus:ring-0 text-sm ml-2 w-full outline-none text-slate-700 placeholder-slate-400" />
+                                    {searchQuery && <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-600"><X size={14}/></button>}
                                 </div>
                             </div>
 
-                            {mobileMenuOpen && (
-                                <div className="lg:hidden mt-4 space-y-2 border-t border-white/20 pt-4">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <select
-                                            value={language}
-                                            onChange={(e) => setLanguage(e.target.value)}
-                                            className="bg-white/20 text-white text-sm font-medium px-3 py-2 rounded-lg focus:outline-none flex-1"
-                                        >
-                                            <option value="fr" className="text-gray-900">Français</option>
-                                            <option value="en" className="text-gray-900">English</option>
-                                            <option value="ro" className="text-gray-900">Română</option>
-                                        </select>
-                                        <button
-                                            onClick={() => setShowColumns(!showColumns)}
-                                            className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-                                        >
-                                            {showColumns ? <Eye size={20} /> : <EyeOff size={20} />}
-                                        </button>
-                                    </div>
-                                    
-                                    <div className="flex items-center justify-center gap-2 bg-white/20 rounded-lg p-2">
-                                        <button onClick={() => setCurrentYear(currentYear - 1)} className="p-2 hover:bg-white/30 rounded-lg transition-colors">
-                                            <ChevronLeft size={20} />
-                                        </button>
-                                        <span className="text-base font-bold text-white min-w-[100px] text-center">
-                                            {yearView === 1 ? currentYear : `${currentYear}-${currentYear + yearView - 1}`}
-                                        </span>
-                                        <button onClick={() => setCurrentYear(currentYear + 1)} className="p-2 hover:bg-white/30 rounded-lg transition-colors">
-                                            <ChevronRight size={20} />
-                                        </button>
-                                    </div>
-
-                                    <select
-                                        value={yearView}
-                                        onChange={(e) => setYearView(parseInt(e.target.value))}
-                                        className="w-full bg-white/20 text-white text-sm font-medium px-3 py-2 rounded-lg focus:outline-none"
-                                    >
-                                        <option value="1" className="text-gray-900">📅 {translations[language].oneYear}</option>
-                                        <option value="2" className="text-gray-900">📅 {translations[language].twoYears}</option>
-                                        <option value="3" className="text-gray-900">📅 {translations[language].threeYears}</option>
-                                    </select>
-
-                                    <button
-                                        onClick={() => { addTask(); setMobileMenuOpen(false); }}
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-                                    >
-                                        <Plus size={20} />
-                                        {translations[language].addTask}
-                                    </button>
-                                    
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <button
-                                            onClick={() => { exportJSON(); setMobileMenuOpen(false); }}
-                                            className="flex flex-col items-center gap-1 px-2 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors text-xs"
-                                        >
-                                            <FileDown size={20} />
-                                            <span>JSON</span>
-                                        </button>
-                                        <button
-                                            onClick={() => { fileInputRef.current?.click(); setMobileMenuOpen(false); }}
-                                            className="flex flex-col items-center gap-1 px-2 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors text-xs"
-                                        >
-                                            <Upload size={20} />
-                                            <span>Import</span>
-                                        </button>
-                                        <button
-                                            onClick={() => { exportAsImage(); setMobileMenuOpen(false); }}
-                                            className="flex flex-col items-center gap-1 px-2 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors text-xs"
-                                        >
-                                            <Download size={20} />
-                                            <span>Image</span>
-                                        </button>
-                                    </div>
+                            {/* DROITE */}
+                            <div className="flex items-center gap-2">
+                                {/* UNDO/REDO */}
+                                <div className="flex items-center bg-slate-100 rounded-lg p-1 mr-2 border border-slate-200">
+                                    <button onClick={undo} disabled={historyPointer <= 0} className={`p-1.5 rounded-md transition ${historyPointer > 0 ? 'hover:bg-white hover:shadow-sm text-slate-600' : 'text-slate-300 cursor-not-allowed'}`} title={translations[language].undo}><Undo size={16}/></button>
+                                    <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                                    <button onClick={redo} disabled={historyPointer >= history.length - 1} className={`p-1.5 rounded-md transition ${historyPointer < history.length - 1 ? 'hover:bg-white hover:shadow-sm text-slate-600' : 'text-slate-300 cursor-not-allowed'}`} title={translations[language].redo}><Redo size={16}/></button>
                                 </div>
-                            )}
+
+                                <button onClick={()=>setShowColumns(!showColumns)} className={`p-2 rounded-lg transition btn-hover ${!showColumns ? 'bg-blue-50 text-blue-600':'text-slate-500 hover:bg-slate-100'}`}><Eye size={18}/></button>
+                                
+                                <div className="relative">
+                                    <button onClick={()=>setStatsMenuOpen(!statsMenuOpen)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition btn-hover"><BarChart size={18}/></button>
+                                    {statsMenuOpen && (<><div className="fixed inset-0 z-40" onClick={()=>setStatsMenuOpen(false)}></div><div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl z-50 p-5 border border-slate-100 text-sm"><h3 className="font-bold mb-4 text-lg text-slate-800">{translations[language].statistics}</h3><div className="grid grid-cols-2 gap-3 mb-4"><div className="bg-blue-50 p-3 rounded-xl border border-blue-100"><div className="text-2xl font-bold text-blue-600">{calculateProjectDuration().days}</div><div className="text-xs text-blue-600/70 uppercase font-semibold">{translations[language].days}</div></div><div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100"><div className="text-2xl font-bold text-emerald-600">{calculateProgress().percentage}%</div><div className="text-xs text-emerald-600/70 uppercase font-semibold">{translations[language].completionRate}</div></div></div><div className="space-y-3"><div className="flex justify-between items-center"><span>{translations[language].todo}</span><span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-bold text-slate-600">{getStatusCount().todo}</span></div><div className="flex justify-between items-center"><span>{translations[language].inProgress}</span><span className="bg-blue-50 px-2 py-0.5 rounded text-xs font-bold text-blue-600">{getStatusCount().inProgress}</span></div><div className="flex justify-between items-center"><span>{translations[language].completed}</span><span className="bg-emerald-50 px-2 py-0.5 rounded text-xs font-bold text-emerald-600">{getStatusCount().completed}</span></div></div></div></>)}
+                                </div>
+
+                                <div className="relative">
+                                    <button onClick={()=>setTeamMenuOpen(!teamMenuOpen)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition btn-hover"><Users size={18}/></button>
+                                    {teamMenuOpen && (<><div className="fixed inset-0 z-40" onClick={()=>setTeamMenuOpen(false)}></div><div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl z-50 p-5 border border-slate-100"><h3 className="font-bold mb-3 text-slate-800">{translations[language].manageTeam}</h3><div className="flex gap-2 mb-3"><input value={newMemberName} onChange={(e)=>setNewMemberName(e.target.value)} className="border rounded-lg px-3 py-1.5 flex-1 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" placeholder={translations[language].memberName} /><button onClick={addTeamMember} className="bg-blue-600 text-white rounded-lg p-1.5 hover:bg-blue-700 transition"><UserPlus size={18}/></button></div><div className="max-h-48 overflow-y-auto thin-scroll space-y-1">{teamMembers.map(m => (<div key={m.id} className="flex justify-between items-center text-sm bg-slate-50 p-2 rounded-lg group"><span>{m.name}</span><button onClick={()=>deleteTeamMember(m.id)} className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"><Trash2 size={14}/></button></div>))}</div></div></>)}
+                                </div>
+
+                                <div className="h-6 w-px bg-slate-200 mx-2"></div>
+
+                                <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200">
+                                    <button onClick={()=>setCurrentYear(currentYear-1)} className="p-1 hover:bg-white hover:shadow-sm rounded-md text-slate-500 transition"><ChevronLeft size={14}/></button>
+                                    <span className="px-3 text-xs font-bold text-slate-600 flex items-center select-none">{currentYear}</span>
+                                    <button onClick={()=>setCurrentYear(currentYear+1)} className="p-1 hover:bg-white hover:shadow-sm rounded-md text-slate-500 transition"><ChevronRight size={14}/></button>
+                                </div>
+
+                                <select value={yearView} onChange={(e)=>setYearView(parseInt(e.target.value))} className="bg-slate-100 text-xs font-bold text-slate-600 rounded-lg px-3 py-1.5 border border-slate-200 outline-none cursor-pointer hover:bg-slate-200 transition"><option value="1">{translations[language].oneYear}</option><option value="2">{translations[language].twoYears}</option><option value="3">{translations[language].threeYears}</option></select>
+
+                                <div className="relative">
+                                    <button onClick={()=>setFileMenuOpen(!fileMenuOpen)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 transition btn-hover"><Download size={18}/></button>
+                                    {fileMenuOpen && (<><div className="fixed inset-0 z-40" onClick={()=>setFileMenuOpen(false)}></div><div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl z-50 border border-slate-100 overflow-hidden"><button onClick={()=>{exportJSON();setFileMenuOpen(false)}} className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm font-medium text-slate-600 flex gap-3 items-center transition"><FileDown size={16} className="text-slate-400"/> JSON</button><button onClick={()=>{exportCSV();setFileMenuOpen(false)}} className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm font-medium text-slate-600 flex gap-3 items-center border-b border-slate-100 transition"><FileText size={16} className="text-slate-400"/> {translations[language].exportCSV}</button><button onClick={()=>{fileInputRef.current.click();setFileMenuOpen(false)}} className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm font-medium text-slate-600 flex gap-3 items-center transition"><Upload size={16} className="text-slate-400"/> Import</button></div></>)}
+                                </div>
+
+                                <button onClick={addStory} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-lg shadow-slate-900/20 btn-hover"><Book size={16}/> <span className="hidden sm:inline">{translations[language].addStory}</span></button>
+                                <button onClick={addTask} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-lg shadow-blue-600/30 btn-hover"><Plus size={16}/> <span className="hidden sm:inline">{translations[language].addTask}</span></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-hidden flex relative">
+                        {/* TABLEAU LISTE */}
+                        <div className="flex-shrink-0 bg-white border-r border-slate-200 w-full sm:w-auto overflow-y-auto sm:overflow-visible z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)]" style={{maxWidth: '100%'}}>
+                             <div className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 flex h-10 items-center">
+                                {showColumns && <div className="w-20 px-3 border-r border-slate-200 text-[10px] font-bold uppercase tracking-widest text-slate-400 text-center">{translations[language].type}</div>}
+                                <div className="w-48 sm:w-72 px-4 border-r border-slate-200 text-[10px] font-bold uppercase tracking-widest text-slate-400">{translations[language].description}</div>
+                                {showColumns && (<><div className="w-28 px-3 border-r border-slate-200 text-[10px] font-bold uppercase tracking-widest text-slate-400">{translations[language].status}</div><div className="w-28 px-3 border-r border-slate-200 text-[10px] font-bold uppercase tracking-widest text-slate-400">{translations[language].assignee}</div><div className="w-32 px-3 border-r border-slate-200 text-[10px] font-bold uppercase tracking-widest text-slate-400">{translations[language].start}</div><div className="w-32 px-3 border-r border-slate-200 text-[10px] font-bold uppercase tracking-widest text-slate-400">{translations[language].end}</div><div className="w-20 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 text-center">{translations[language].action}</div></>)}
+                            </div>
+                            <div className="overflow-y-auto hide-scroll" style={{height: 'calc(100% - 40px)'}}>
+                            {renderList.map((task) => {
+                                if (!task.isVisible) return null;
+                                const isStory = task.isHeader;
+                                const isSelected = selectedTaskId === task.id;
+                                return (
+                                <div key={task.id} className={`flex border-b border-slate-100 transition-colors h-12 items-center text-sm group ${isStory ? 'story-row' : 'hover:bg-slate-50 bg-white'} ${isSelected ? 'selected-task' : ''}`} onClick={()=>!isStory && setSelectedTaskId(task.id)} onDoubleClick={() => setEditingTask(task)}>
+                                    {showColumns && (<div className="w-20 px-2 border-r border-slate-100 flex-shrink-0 flex items-center justify-center">{isStory ? <span className="text-[9px] font-bold px-2 py-0.5 bg-slate-800 text-white rounded-full shadow-sm tracking-wide">STORY</span> : <div className="w-2 h-2 rounded-full" style={{backgroundColor: task.color}}></div>}</div>)}
+                                    <div className="w-48 sm:w-72 px-2 border-r border-slate-100 flex-shrink-0 flex items-center">
+                                        {isStory && (<button onClick={(e)=>{e.stopPropagation();toggleStory(task.id)}} className="mr-2 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded transition">{task.isCollapsed ? <ChevronRight size={14}/> : <ChevronDown size={14}/>}</button>)}
+                                        {!isStory && task.hasParent && <div className="w-6 flex-shrink-0 border-l-2 border-b-2 border-slate-200 h-3 mr-2 rounded-bl opacity-50"></div>} 
+                                        <div className="flex-1 flex items-center gap-2 overflow-hidden"><input value={task.description} onChange={(e)=>updateTask(task.id, 'description', e.target.value)} className={`w-full px-2 py-1 rounded focus:bg-white bg-transparent focus:ring-2 focus:ring-blue-500/20 outline-none text-slate-700 truncate ${isStory?'font-bold text-slate-800':''}`} />{task.link && <a href={task.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 bg-blue-50 p-1 rounded"><LinkIcon size={12} /></a>}</div>
+                                    </div>
+                                    {showColumns && (<><div className="w-28 px-2 border-r border-slate-100 hidden md:block"><select value={task.status} onChange={(e)=>updateTask(task.id, 'status', e.target.value)} className={`w-full text-xs font-medium rounded-md px-2 py-1 border-none cursor-pointer outline-none ${task.status==='completed'?'bg-emerald-100 text-emerald-700':task.status==='inProgress'?'bg-blue-100 text-blue-700':task.status==='blocked'?'bg-rose-100 text-rose-700':'bg-slate-100 text-slate-600'}`}><option value="todo">{translations[language].todo}</option><option value="inProgress">{translations[language].inProgress}</option><option value="completed">{translations[language].completed}</option><option value="blocked">{translations[language].blocked}</option></select></div><div className="w-28 px-2 border-r border-slate-100 hidden md:block"><select value={task.assigneeId||''} onChange={(e)=>updateTask(task.id, 'assigneeId', e.target.value?parseInt(e.target.value):null)} className="w-full text-xs border-none bg-transparent focus:ring-0 text-slate-600 outline-none"><option value="">-</option>{teamMembers.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></div><div className="w-32 px-2 border-r border-slate-100 hidden lg:block"><input type="date" value={task.startDate||''} onChange={(e)=>updateTask(task.id, 'startDate', e.target.value)} className="w-full text-xs border-none bg-transparent text-slate-500 outline-none font-mono" /></div><div className="w-32 px-2 border-r border-slate-100 hidden lg:block"><input type="date" value={task.endDate||''} onChange={(e)=>updateTask(task.id, 'endDate', e.target.value)} className="w-full text-xs border-none bg-transparent text-slate-500 outline-none font-mono" /></div>
+                                    <div className="w-20 px-2 flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={()=>duplicateTask(task)} className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-1.5 rounded transition" title={translations[language].duplicate}><Copy size={14}/></button>
+                                        <button onClick={()=>deleteTask(task.id)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded transition"><Trash2 size={14}/></button>
+                                    </div></>)}
+                                </div>
+                                );
+                            })}
+                            <div className="h-32"></div>
+                            </div>
                         </div>
 
-                        <div className="flex overflow-hidden">
-                            <div className="flex-shrink-0 bg-white border-r-2 border-gray-300">
-                                <div className="flex border-b-2 border-gray-200 bg-gray-50">
-                                    {showColumns && <div className="w-16 sm:w-20 md:w-28 p-2 sm:p-3 font-bold text-gray-700 border-r text-xs sm:text-sm">{translations[language].type}</div>}
-                                    <div className="w-40 sm:w-60 md:w-80 p-2 sm:p-3 font-bold text-gray-700 border-r text-xs sm:text-sm">{translations[language].description}</div>
-                                    {showColumns && <div className="w-28 md:w-36 p-2 sm:p-3 font-bold text-gray-700 border-r text-xs sm:text-sm">{translations[language].status}</div>}
-                                    {showColumns && <div className="w-32 md:w-40 p-2 sm:p-3 font-bold text-gray-700 border-r text-xs sm:text-sm">{translations[language].assignee}</div>}
-                                    {showColumns && <div className="w-24 md:w-32 p-2 sm:p-3 font-bold text-gray-700 border-r text-xs sm:text-sm">{translations[language].start}</div>}
-                                    {showColumns && <div className="w-24 md:w-32 p-2 sm:p-3 font-bold text-gray-700 border-r text-xs sm:text-sm">{translations[language].end}</div>}
-                                    {showColumns && <div className="w-24 sm:w-28 p-2 sm:p-3 font-bold text-gray-700 text-xs sm:text-sm text-center">{translations[language].action}</div>}
+                        {/* GANTT */}
+                        <div className="flex-1 overflow-x-auto overflow-y-hidden bg-slate-50/50 relative hidden sm:block">
+                            <div className="inline-block min-w-full h-full relative">
+                                {todayPos !== null && (<><div className="today-line" style={{left: `${todayPos}px`}}></div><div className="today-label shadow-sm" style={{left: `${todayPos}px`}}>Aujourd'hui</div></>)}
+                                <div className="sticky top-0 z-10 bg-white border-b border-slate-200 h-10 flex flex-col shadow-sm">
+                                    <div className="flex h-5 border-b border-slate-100">{generateWeekColumns.map((col, i) => { const isNewMonth = i===0 || col.month !== generateWeekColumns[i-1]?.month; if(isNewMonth) { let span = 1; while(generateWeekColumns[i+span] && generateWeekColumns[i+span].month === col.month) span++; return <div key={i} className="border-r border-slate-100 text-[9px] font-bold text-slate-400 uppercase flex items-center justify-center bg-slate-50/50 tracking-wider" style={{width: span*30}}>{col.month} {yearView>1?col.year:''}</div> } return null; })}</div>
+                                    <div className="flex h-5">{generateWeekColumns.map((col, i) => (<div key={i} className="w-[30px] flex-shrink-0 border-r border-slate-100 text-[9px] text-center text-slate-300 flex items-center justify-center font-mono">{col.week}</div>))}</div>
                                 </div>
-
-                                {filteredTasks.map((task, taskIndex) => {
-                                    const isStory = task.type === 'Story';
-                                    const storyDates = isStory ? getStoryDates(taskIndex) : null;
-                                    const displayStartDate = isStory ? storyDates?.startDate : task.startDate;
-                                    const displayEndDate = isStory ? storyDates?.endDate : task.endDate;
-                                    
+                                <div className="overflow-y-auto hide-scroll" style={{height: 'calc(100% - 40px)'}}>
+                                {renderList.map(task => {
+                                    if (!task.isVisible) return null;
+                                    const pos = getTaskPosition(task);
+                                    const assignee = task.assigneeId ? teamMembers.find(m=>m.id===task.assigneeId) : null;
+                                    const isOverdue = getOverdueTasks().some(t=>t.id===task.id);
+                                    const isDragging = draggingTask && draggingTask.id === task.id;
+                                    const isResizing = resizingTask && resizingTask.id === task.id;
+                                    const isStory = task.isHeader;
+                                    const isSelected = selectedTaskId === task.id;
                                     return (
-                                        <div key={`fixed-${task.id}`} className="flex border-b border-gray-200 hover:bg-gray-50" style={{ height: '48px' }}>
-                                            {showColumns && (
-                                                <div className="w-16 sm:w-20 md:w-28 p-1 sm:p-2 border-r flex items-center justify-center">
-                                                    <select
-                                                        value={task.type}
-                                                        onChange={(e) => updateTask(task.id, 'type', e.target.value)}
-                                                        className="w-full px-1 py-1 border rounded text-xs"
-                                                    >
-                                                        <option value="Story">{translations[language].story}</option>
-                                                        <option value="Task">{translations[language].task}</option>
-                                                    </select>
-                                                </div>
-                                            )}
-                                            <div className="w-40 sm:w-60 md:w-80 p-1 sm:p-2 border-r">
-                                                <input
-                                                    type="text"
-                                                    value={task.description}
-                                                    onChange={(e) => updateTask(task.id, 'description', e.target.value)}
-                                                    className="w-full px-1 sm:px-2 py-1 border rounded text-xs sm:text-sm"
-                                                />
-                                            </div>
-                                            {showColumns && (
-                                                <div className="w-28 md:w-36 p-1 sm:p-2 border-r">
-                                                    <select
-                                                        value={task.status || 'todo'}
-                                                        onChange={(e) => updateTask(task.id, 'status', e.target.value)}
-                                                        className="w-full px-1 py-1 border rounded text-xs"
-                                                        style={{
-                                                            backgroundColor: 
-                                                                task.status === 'completed' ? '#dcfce7' :
-                                                                task.status === 'inProgress' ? '#dbeafe' :
-                                                                task.status === 'blocked' ? '#fee2e2' : '#f3f4f6'
-                                                        }}
-                                                    >
-                                                        <option value="todo">{translations[language].todo}</option>
-                                                        <option value="inProgress">{translations[language].inProgress}</option>
-                                                        <option value="completed">{translations[language].completed}</option>
-                                                        <option value="blocked">{translations[language].blocked}</option>
-                                                    </select>
-                                                </div>
-                                            )}
-                                            {showColumns && (
-                                                <div className="w-32 md:w-40 p-1 sm:p-2 border-r">
-                                                    <select
-                                                        value={task.assigneeId || ''}
-                                                        onChange={(e) => updateTask(task.id, 'assigneeId', e.target.value ? parseInt(e.target.value) : null)}
-                                                        className="w-full px-1 py-1 border rounded text-xs"
-                                                    >
-                                                        <option value="">{translations[language].noAssignee}</option>
-                                                        {teamMembers.map(member => (
-                                                            <option key={member.id} value={member.id}>{member.name}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            )}
-                                            {showColumns && (
-                                                <div className="w-24 md:w-32 p-1 sm:p-2 border-r">
-                                                    {isStory ? (
-                                                        <div className="px-1 sm:px-2 py-1 text-xs sm:text-sm text-gray-600 bg-gray-100 rounded border truncate">
-                                                            {displayStartDate ? formatDate(displayStartDate) : '-'}
-                                                        </div>
-                                                    ) : (
-                                                        <input
-                                                            type="date"
-                                                            value={task.startDate}
-                                                            onChange={(e) => updateTask(task.id, 'startDate', e.target.value)}
-                                                            className="w-full px-1 py-1 border rounded text-xs"
-                                                        />
-                                                    )}
-                                                </div>
-                                            )}
-                                            {showColumns && (
-                                                <div className="w-24 md:w-32 p-1 sm:p-2 border-r">
-                                                    {isStory ? (
-                                                        <div className="px-1 sm:px-2 py-1 text-xs sm:text-sm text-gray-600 bg-gray-100 rounded border truncate">
-                                                            {displayEndDate ? formatDate(displayEndDate) : '-'}
-                                                        </div>
-                                                    ) : (
-                                                        <input
-                                                            type="date"
-                                                            value={task.endDate}
-                                                            onChange={(e) => updateTask(task.id, 'endDate', e.target.value)}
-                                                            className="w-full px-1 py-1 border rounded text-xs"
-                                                        />
-                                                    )}
-                                                </div>
-                                            )}
-                                            {showColumns && (
-                                                <div className="w-24 sm:w-28 flex items-center justify-center gap-1 p-1 sm:p-2">
-                                                    <div className="relative">
-                                                        <button
-                                                            onClick={() => setColorPickerOpen(colorPickerOpen === task.id ? null : task.id)}
-                                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                                                            title={translations[language].color}
-                                                            style={{ color: task.color }}
-                                                        >
-                                                            <Palette size={18} />
-                                                        </button>
-                                                        {colorPickerOpen === task.id && (
-                                                            <>
-                                                                <div className="fixed inset-0 z-40" onClick={() => setColorPickerOpen(null)}></div>
-                                                                <div className="absolute right-0 mt-1 bg-white rounded-lg shadow-xl z-50 p-3 border" style={{ width: '200px' }}>
-                                                                    <div className="grid grid-cols-4 gap-2 mb-2">
-                                                                        {predefinedColors.map((color, idx) => (
-                                                                            <button
-                                                                                key={idx}
-                                                                                onClick={() => {
-                                                                                    updateTask(task.id, 'color', color);
-                                                                                    setColorPickerOpen(null);
-                                                                                }}
-                                                                                className="w-10 h-10 rounded-lg border-2 hover:scale-110 transition-transform"
-                                                                                style={{ 
-                                                                                    backgroundColor: color,
-                                                                                    borderColor: task.color === color ? '#000' : '#ddd'
-                                                                                }}
-                                                                            />
-                                                                        ))}
-                                                                    </div>
-                                                                    <div className="border-t pt-2">
-                                                                        <label className="block text-xs text-gray-600 mb-1">{translations[language].customColor}</label>
-                                                                        <input
-                                                                            type="color"
-                                                                            value={task.color}
-                                                                            onChange={(e) => updateTask(task.id, 'color', e.target.value)}
-                                                                            className="w-full h-10 rounded border cursor-pointer"
-                                                                        />
-                                                                    </div>
-                                                                </div>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                    <button
-                                                        onClick={() => deleteTask(task.id)}
-                                                        className="p-2 hover:bg-red-100 rounded-lg text-red-600 transition-colors"
-                                                        title="Supprimer"
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </button>
+                                        <div key={task.id} className={`h-12 border-b border-slate-100 relative group ${isStory ? 'bg-slate-100/50' : ''} ${isSelected ? 'bg-blue-50/30' : ''}`} onDoubleClick={() => setEditingTask(task)} onClick={()=>!isStory && setSelectedTaskId(task.id)}>
+                                            <div className="absolute inset-0 flex pointer-events-none">{generateWeekColumns.map((_, i) => <div key={i} className="w-[30px] border-r border-slate-100/50 h-full"></div>)}</div>
+                                            {pos && (
+                                                <div className={`task-bar absolute top-3 h-6 flex items-center px-2 text-white text-xs overflow-hidden transition-all 
+                                                    ${isDragging ? 'opacity-90 cursor-grabbing scale-[1.02] shadow-xl ring-2 ring-blue-400 z-50' : 'hover:opacity-90 cursor-grab'} 
+                                                    ${isResizing ? 'z-50 shadow-lg ring-2 ring-blue-400':''} 
+                                                    ${isStory ? 'rounded-sm shadow-none' : 'rounded-md shadow-md'}
+                                                `} onMouseDown={(e) => handleMouseDown(e, task)} title={`${task.description} (${task.progress || 0}%)`} 
+                                                style={{ left: pos.left * 30, width: pos.width * 30, backgroundColor: isStory ? '#334155' : task.color, border: isOverdue ? '2px solid #f43f5e' : 'none', clipPath: isStory ? 'polygon(0 0, 100% 0, 100% 80%, 50% 100%, 0 80%)' : 'none' }}>
+                                                    
+                                                    {!isStory && task.progress > 0 && (<div className="absolute left-0 top-0 bottom-0 bg-black/10 pointer-events-none" style={{width: `${task.progress}%`}}></div>)}
+                                                    
+                                                    {!isStory && assignee && <div className="w-5 h-5 bg-white rounded-full text-slate-700 flex items-center justify-center text-[8px] font-bold mr-1.5 -ml-1 border-2 border-white shadow-sm relative z-10">{getInitials(assignee.name)}</div>}
+                                                    
+                                                    <span className="truncate drop-shadow-md select-none relative z-10 flex items-center gap-1 font-medium text-[11px] tracking-wide">
+                                                        {task.description} {task.link && <LinkIcon size={10} className="text-white/90" />}
+                                                    </span>
+                                                    
+                                                    <div className="resize-handle" onMouseDown={(e) => handleResizeMouseDown(e, task)}></div>
                                                 </div>
                                             )}
                                         </div>
                                     );
                                 })}
-                            </div>
-
-                            <div className="flex-1 overflow-x-auto">
-                                <div className="inline-block min-w-full">
-                                    <div className="border-b-2 border-gray-200 bg-gray-50">
-                                        <div className="flex flex-col">
-                                            <div className="flex h-5 sm:h-6 border-b">
-                                                {weekColumns.map((col, idx) => {
-                                                    const showMonth = idx === 0 || col.month !== weekColumns[idx - 1]?.month || col.year !== weekColumns[idx - 1]?.year;
-                                                    const monthSpan = showMonth ? weekColumns.filter((w, i) => i >= idx && w.month === col.month && w.year === col.year).length : 0;
-                                                    
-                                                    if (showMonth) {
-                                                        return (
-                                                            <div 
-                                                                key={`month-${idx}`} 
-                                                                className="text-[10px] sm:text-xs font-bold text-gray-700 flex items-center justify-center border-l bg-gray-100"
-                                                                style={{ width: `${monthSpan * 30}px` }}
-                                                            >
-                                                                {yearView > 1 ? `${col.month} ${col.year}` : col.month}
-                                                            </div>
-                                                        );
-                                                    }
-                                                    return null;
-                                                })}
-                                            </div>
-                                            <div className="flex h-6 sm:h-8">
-                                                {weekColumns.map((col, idx) => (
-                                                    <div key={idx} className="relative" style={{ width: '30px' }}>
-                                                        <div className="h-full flex items-center justify-center text-[10px] sm:text-xs font-medium text-gray-600 border-l">
-                                                            {col.week}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {filteredTasks.map((task, taskIndex) => {
-                                        const isStory = task.type === 'Story';
-                                        const storyDates = isStory ? getStoryDates(taskIndex) : null;
-                                        const displayStartDate = isStory ? storyDates?.startDate : task.startDate;
-                                        const displayEndDate = isStory ? storyDates?.endDate : task.endDate;
-                                        
-                                        const taskToDisplay = isStory ? { ...task, startDate: displayStartDate, endDate: displayEndDate } : task;
-                                        const position = getTaskPosition(taskToDisplay);
-                                        const assignee = task.assigneeId ? getMemberById(task.assigneeId) : null;
-                                        
-                                        // Vérifier si la tâche est en retard
-                                        const today = new Date();
-                                        today.setHours(0, 0, 0, 0);
-                                        const isOverdue = task.endDate && new Date(task.endDate) < today && task.status !== 'completed';
-                                        
-                                        return (
-                                            <div key={`gantt-${task.id}`} className="border-b border-gray-200 hover:bg-gray-50" style={{ height: '48px' }}>
-                                                <div className="relative" style={{ height: '48px' }}>
-                                                    <div className="absolute inset-0 flex">
-                                                        {weekColumns.map((_, idx) => (
-                                                            <div key={idx} className="border-l" style={{ width: '30px', height: '100%' }} />
-                                                        ))}
-                                                    </div>
-                                                    {position && (
-                                                        <div
-                                                            className="absolute top-2 bottom-2 rounded flex items-center justify-center text-white text-[8px] sm:text-xs font-medium shadow-md cursor-pointer hover:opacity-90 transition-opacity px-1"
-                                                            style={{
-                                                                left: `${position.left * 30}px`,
-                                                                width: `${position.width * 30}px`,
-                                                                backgroundColor: task.color,
-                                                                border: isOverdue ? '3px solid #ef4444' : 'none',
-                                                                boxShadow: isOverdue ? '0 0 10px rgba(239, 68, 68, 0.5)' : undefined
-                                                            }}
-                                                        >
-                                                            {assignee && (
-                                                                <div className="absolute -top-1 -left-1 w-6 h-6 rounded-full bg-white border-2 flex items-center justify-center text-[10px] font-bold shadow-sm" style={{ borderColor: task.color, color: task.color }}>
-                                                                    {getInitials(assignee.name)}
-                                                                </div>
-                                                            )}
-                                                            <span className="truncate hidden sm:inline">
-                                                                {displayStartDate && displayEndDate ? `${formatDate(displayStartDate)} - ${formatDate(displayEndDate)}` : ''}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
                                 </div>
                             </div>
-                        </div>
-
-                        <div className="bg-gray-50 p-2 sm:p-3 md:p-4 border-t">
-                            <p className="text-xs sm:text-sm text-gray-600 text-center">
-                                {filteredTasks.length} {translations[language].taskCount} • {yearView === 1 ? `${translations[language].year} ${currentYear}` : `${currentYear}-${currentYear + yearView - 1}`}
-                            </p>
                         </div>
                     </div>
                 </div>
             );
         };
 
+        // --- APP WRAPPER ---
+        const App = () => {
+            const [projects, setProjects] = useState(() => {
+                const saved = localStorage.getItem('my_planner_projects');
+                return saved ? JSON.parse(saved) : [{ id: 1, title: 'Projet Démo', tasks: [{ id: 1, type: 'Story', description: 'Phase de Conception', startDate: new Date().toISOString().split('T')[0], endDate: new Date(Date.now() + 2500000000).toISOString().split('T')[0], color: '#334155' }, { id: 2, type: 'Task', description: 'Maquettes UI', startDate: new Date().toISOString().split('T')[0], endDate: new Date(Date.now() + 600000000).toISOString().split('T')[0], color: '#60A5FA', status: 'todo', progress: 0 }] }];
+            });
+            const [activeProjectId, setActiveProjectId] = useState(projects[0].id);
+            const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+            const [language, setLanguage] = useState('fr');
+
+            useEffect(() => { localStorage.setItem('my_planner_projects', JSON.stringify(projects)); }, [projects]);
+            const activeProject = projects.find(p => p.id === activeProjectId) || projects[0];
+            const handleSaveProject = (updatedProjectData) => { setProjects(projects.map(p => p.id === updatedProjectData.id ? updatedProjectData : p)); };
+            const createNewProject = () => { const newP = { id: Date.now(), title: translations[language].newTask, currentYear: new Date().getFullYear(), tasks: [], teamMembers: [] }; setProjects([...projects, newP]); setActiveProjectId(newP.id); if (window.innerWidth < 768) setIsSidebarOpen(false); };
+            const deleteProject = (id, e) => { e.stopPropagation(); if (projects.length <= 1) return; if (confirm(translations[language].deleteConfirm)) { const newP = projects.filter(p => p.id !== id); setProjects(newP); if (activeProjectId === id) setActiveProjectId(newP[0].id); } };
+
+            return (
+                <div className="flex h-screen w-screen overflow-hidden bg-slate-900">
+                    <div className={`${isSidebarOpen ? 'w-64 translate-x-0' : 'w-0 -translate-x-full opacity-0'} fixed inset-y-0 left-0 z-30 bg-slate-900 text-slate-300 transition-all duration-300 ease-in-out md:relative md:translate-x-0 flex flex-col border-r border-slate-800 shadow-2xl`}>
+                        <div className="p-6 border-b border-slate-800 flex items-center justify-between"><div className="font-bold text-lg tracking-wider flex items-center gap-3 text-white"><div className="bg-blue-600 p-1.5 rounded-lg"><Layout size={20} className="text-white"/></div> PLANNER</div><button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-slate-500 hover:text-white"><X/></button></div>
+                        <div className="p-4 border-b border-slate-800"><button onClick={createNewProject} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/50 font-medium text-sm"><FolderPlus size={18} /> {translations[language].createProject}</button></div>
+                        <div className="flex-1 overflow-y-auto p-3 space-y-1 thin-scroll"><div className="text-[10px] font-bold text-slate-500 uppercase px-3 py-2 tracking-widest">{translations[language].myProjects}</div>{projects.map(p => (<div key={p.id} onClick={() => { setActiveProjectId(p.id); if(window.innerWidth<768) setIsSidebarOpen(false); }} className={`group flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all ${activeProjectId === p.id ? 'bg-slate-800 text-white shadow-md' : 'hover:bg-slate-800/50 text-slate-400 hover:text-slate-200'}`}><span className="truncate text-sm font-medium">{p.title || translations[language].unnamedProject}</span>{projects.length > 1 && (<button onClick={(e) => deleteProject(p.id, e)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-rose-500/20 hover:text-rose-400 rounded-md transition-all"><Trash2 size={14}/></button>)}</div>))}</div>
+                        <div className="p-4 border-t border-slate-800 bg-slate-900"><select value={language} onChange={(e)=>setLanguage(e.target.value)} className="w-full bg-slate-800 text-slate-400 text-xs font-medium p-2 rounded-lg border border-slate-700 outline-none focus:border-blue-500 transition"><option value="fr">Français</option><option value="en">English</option></select></div>
+                    </div>
+                    <div className="flex-1 flex flex-col h-full overflow-hidden relative bg-white">
+                        {!isSidebarOpen && (<button onClick={() => setIsSidebarOpen(true)} className="absolute top-4 left-4 z-30 p-2.5 bg-slate-900 text-white rounded-full shadow-xl hover:bg-slate-800 transition md:hidden"><Menu size={20}/></button>)}
+                        <ProjectEditor key={activeProjectId} projectData={activeProject} onSave={handleSaveProject} language={language} setLanguage={setLanguage} />
+                    </div>
+                </div>
+            );
+        };
+
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<ProjectPlanner />);
+        root.render(<App />);
     </script>
 </body>
 </html>
